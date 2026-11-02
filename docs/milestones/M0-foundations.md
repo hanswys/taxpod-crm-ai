@@ -254,28 +254,28 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
 - [ ] Commit the design on its own, so git history shows design before code
 
 **Scaffold**
-- [ ] `create-next-app` (TypeScript, App Router, Tailwind, ESLint, `@/*` alias, no `src/`)
-- [ ] `shadcn` init + a couple of base components (button, card)
-- [ ] `.nvmrc` + `engines` for Node LTS
-- [ ] Install `postgres`, `@google/genai`, `tsx`, `dotenv`
+- [x] `create-next-app` (TypeScript, App Router, Tailwind, ESLint, `@/*` alias, no `src/`)
+- [x] `shadcn` init + a couple of base components (button, card)
+- [x] `.nvmrc` + `engines` for Node LTS
+- [x] Install `postgres`, `@google/genai`, `tsx`, `dotenv`
 
 **Database**
-- [ ] `docker-compose.yml`: `pgvector/pgvector:pg17`, user/db `crm`, port 5433, named volume, `db/schema.sql` mounted into init dir, healthcheck (`pg_isready`)
-- [ ] Write `db/schema.sql` (§3.2)
-- [ ] `lib/db.ts` singleton client; `lib/env.ts`
-- [ ] Health page at `/`: shows DB connected, pgvector version, and row counts per table
-- [ ] npm scripts `db:up`, `db:reset`, `db:psql`
+- [x] `docker-compose.yml`: `pgvector/pgvector:pg17`, user/db `crm`, port 5433, named volume, `db/schema.sql` mounted into init dir, healthcheck (`pg_isready`)
+- [x] Write `db/schema.sql` (§3.2)
+- [x] `lib/db.ts` singleton client; `lib/env.ts`
+- [x] Health page at `/`: shows DB connected, pgvector version, and row counts per table
+- [x] npm scripts `db:up`, `db:reset`, `db:psql`
 
 **Gemini**
 - [ ] Get a free AI Studio key; put it in `.env` (gitignored) and add a placeholder to `.env.example`
 - [ ] Confirm current model IDs (list models via the API) and record the chosen chat model
-- [ ] `lib/llm.ts` with `generate()` and `embed()` (passes `outputDimensionality: 768` and a task type)
-- [ ] `scripts/check-gemini.ts`: embed one string (assert length 768), generate one short reply, print latency
+- [x] `lib/llm.ts` with `generate()` and `embed()` (passes `outputDimensionality: 768` and a task type)
+- [x] `scripts/check-gemini.ts`: embed one string (assert length 768), generate one short reply, print latency
 - [ ] Record free-tier rate limits (RPM / RPD / batch size for embeddings) in §7, since M2 ingestion has to respect them
 
 **Housekeeping**
-- [ ] `.gitignore` covers `.env*` (except `.env.example`), `node_modules`, `.next`
-- [ ] Minimal README: prerequisites + the 4 setup commands (gets fleshed out in M6)
+- [x] `.gitignore` covers `.env*` (except `.env.example`), `node_modules`, `.next`
+- [x] Minimal README: prerequisites + the 4 setup commands (gets fleshed out in M6)
 - [ ] Add M0 entries to `docs/ai-usage-log.md`
 
 ## 5. Exit criteria / how to verify
@@ -285,7 +285,7 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
 - [ ] `npm run check:gemini` prints a 768-dim embedding length and a generated reply
 - [ ] `ARCHITECTURE.md` has the component diagram, data model and stack justification; it renders on GitHub
 - [ ] `git grep` for the API key finds nothing; `.env` is untracked
-- [ ] `npm run lint` and `npm run build` pass
+- [x] `npm run lint` and `npm run build` pass
 
 ## 6. Risks & open questions
 
@@ -298,6 +298,14 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
 
 ## 7. Notes & outcome (fill in at the end)
 
-- Chosen chat model ID:
-- Free-tier limits observed:
+- Chosen chat model ID: _pending Gemini key_
+- Free-tier limits observed: _pending Gemini key_
 - Deviations from plan:
+  - Versions are newer than expected: Next.js 16.4 (Cache Components on by default), postgres.js 4, `@google/genai` 2. Read their bundled docs first.
+  - Cache Components: DB reads must sit inside `<Suspense>` and call `connection()`, otherwise Next tries to run them at build time.
+  - postgres.js returns `count(*)` (bigint) and `numeric` as strings. Health page shows them as-is; M1 parses at the query boundary.
+  - A refused Postgres connection is an `AggregateError` with an empty message (IPv6 + IPv4 attempts); the health page unwraps it.
+  - `next build` needs a `.env` because `lib/db.ts` checks `DATABASE_URL` when it's first imported. Kept on purpose: README step 1 creates `.env`.
+  - No `dotenv`: scripts use Node's `--env-file-if-exists=.env` (hence `engines: node >=22.9`).
+  - shadcn now uses its own `cn` package instead of `clsx` + `tailwind-merge`.
+  - Docker wasn't installed on the dev machine; installing Docker Desktop.
