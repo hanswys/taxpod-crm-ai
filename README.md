@@ -16,10 +16,19 @@ A lightweight CRM (Leads, Opportunities, Dashboard, Activity Log) with a RAG Q&A
 cp .env.example .env        # then set GEMINI_API_KEY
 npm install
 npm run db:up               # Postgres + pgvector on localhost:5433, schema loaded
+npm run seed                # optional: demo contacts, opportunities and activities
 npm run dev                 # http://localhost:3000
 ```
 
-The home page shows whether the app can reach the database. `npm run check:gemini` checks your API key, lists the models it can use, and makes one embedding and one chat call.
+If port 5433 is taken, set `DB_PORT` in `.env` and use the same port in `DATABASE_URL`.
+
+## Using the CRM
+
+- **Dashboard** (`/`): total contacts, open opportunities, total value (RM) and the latest activity.
+- **Leads** (`/leads`): search by name, email, company or phone; filter by status; create, edit and delete. A lead's page shows their opportunities and activity timeline, where you can log calls, emails, meetings and notes.
+- **Opportunities** (`/opportunities`): a Kanban board by stage. Drag a card to change its stage, or use the stage dropdown on the opportunity's page.
+
+`npm run seed` replaces all CRM data (it never touches ingested documents). [System status](http://localhost:3000/status) shows whether the app can reach the database. `npm run check:gemini` checks your API key, lists the models it can use, and makes one embedding and one chat call.
 
 ## Database
 

@@ -18,6 +18,8 @@ create table contacts (
   updated_at  timestamptz not null default now()
 );
 create index contacts_status_idx on contacts (status);
+-- One contact per email (case-insensitive). M5 matches extracted people to contacts by email.
+create unique index contacts_email_unique on contacts (lower(email)) where email is not null;
 
 -- Deleting a contact deletes its opportunities (and their activities).
 create table opportunities (

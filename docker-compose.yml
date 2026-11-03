@@ -6,8 +6,9 @@ services:
       POSTGRES_PASSWORD: crm
       POSTGRES_DB: crm
     ports:
-      # 5433 on the host so it doesn't clash with a local Postgres on 5432
-      - "5433:5432"
+      # 5433 on the host so it doesn't clash with a local Postgres on 5432.
+      # Override with DB_PORT in .env (and update DATABASE_URL to match).
+      - "${DB_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Runs only when the volume is empty. After editing it: npm run db:reset
