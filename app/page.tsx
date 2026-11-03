@@ -1,90 +1,50 @@
+import Link from "next/link";
 import { connection } from "next/server";
-import { Suspense } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { sql } from "@/lib/db";
+import { ActivityList } from "@/components/crm/activity-list";
+import { PageHeader } from "@/components/crm/page-header";
+import { StatCard } from "@/components/crm/stat-card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { listRecentActivities } from "@/lib/crm/activities";
+import { getDashboardStats } from "@/lib/crm/dashboard";
+import { formatRM } from "@/lib/format";
 
-// M0 health page: proves the app can reach Postgres and that the schema is loaded.
-
-const TABLES = ["contacts", "opportunities", "activities", "documents", "chunks"] as const;
-
-type DbHealth =
-  | { ok: true; pgvector: string; counts: Record<string, string> }
-  | { ok: false; error: string };
-
-async function checkDb(): Promise<DbHealth> {
-  try {
-    const [{ version }] = await sql<{ version: string }[]>`
-      select extversion as version from pg_extension where extname = 'vector'
-    `;
-    const rows = await sql<{ table_name: string; rows: string }[]>`
-      select 'contacts' as table_name, count(*) as rows from contacts
-      union all select 'opportunities', count(*) from opportunities
-      union all select 'activities', count(*) from activities
-      union all select 'documents', count(*) from documents
-      union all select 'chunks', count(*) from chunks
-    `;
-    return { ok: true, pgvector: version, counts: Object.fromEntries(rows.map((r) => [r.table_name, r.rows])) };
-  } catch (error) {
-    return { ok: false, error: describeError(error) };
-  }
-}
-
-// A refused connection is an AggregateError (IPv6 + IPv4 attempts) with an empty message.
-function describeError(error: unknown): string {
-  if (error instanceof AggregateError) return error.errors.map(describeError).join("; ");
-  if (error instanceof Error) return error.message || error.name;
-  return String(error);
-}
-
-async function DbStatus() {
+export default async function DashboardPage() {
   await connection(); // query at request time, not during the build
-  const health = await checkDb();
-
-  if (!health.ok) {
-    return (
-      <CardContent className="space-y-2">
-        <Badge variant="destructive">DB unavailable</Badge>
-        <p className="font-mono text-sm">{health.error}</p>
-        <p className="text-sm text-muted-foreground">
-          Start it with <code>npm run db:up</code>. If tables are missing, run <code>npm run db:reset</code>.
-        </p>
-      </CardContent>
-    );
-  }
+  const [stats, recent] = await Promise.all([getDashboardStats(), listRecentActivities(10)]);
 
   return (
-    <CardContent className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Badge>DB connected</Badge>
-        <Badge variant="secondary">pgvector {health.pgvector}</Badge>
+    <>
+      <PageHeader title="Dashboard" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Total contacts"
+          value={String(stats.total_contacts)}
+          detail={`${stats.leads} leads · ${stats.prospects} prospects · ${stats.customers} customers`}
+        />
+        <StatCard
+          label="Open opportunities"
+          value={String(stats.open_opportunities)}
+          detail={`${formatRM(stats.open_value)} in the open pipeline`}
+        />
+        <StatCard
+          label="Total opportunities value"
+          value={formatRM(stats.total_value)}
+          detail={`${stats.total_opportunities} opportunities · ${formatRM(stats.won_value)} won`}
+        />
       </div>
-      <table className="w-full text-sm">
-        <tbody>
-          {TABLES.map((table) => (
-            <tr key={table} className="border-b last:border-0">
-              <td className="py-1.5 font-mono">{table}</td>
-              <td className="py-1.5 text-right tabular-nums">{health.counts[table] ?? "?"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </CardContent>
-  );
-}
-
-export default function Home() {
-  return (
-    <main className="mx-auto w-full max-w-md p-8">
-      <Card>
+      <Card className="mt-6">
         <CardHeader>
-          <CardTitle>taxPOD CRM</CardTitle>
-          <CardDescription>System status</CardDescription>
+          <CardTitle>Recent activity</CardTitle>
+          <CardAction>
+            <Link href="/leads" className="text-sm text-muted-foreground hover:underline">
+              Log activity from a lead
+            </Link>
+          </CardAction>
         </CardHeader>
-        <Suspense fallback={<CardContent className="text-sm text-muted-foreground">Checking database…</CardContent>}>
-          <DbStatus />
-        </Suspense>
+        <CardContent>
+          <ActivityList activities={recent} show={{ contact: true, opportunity: true }} empty="No activity logged yet." />
+        </CardContent>
       </Card>
-    </main>
+    </>
   );
 }

@@ -96,7 +96,7 @@ erDiagram
   contacts {
     bigint id PK
     text name
-    text email
+    text email UK "case-insensitive"
     text phone
     text company
     text status "lead | prospect | customer"
@@ -151,9 +151,19 @@ Full DDL: [`db/schema.sql`](db/schema.sql).
 - **Enums as `text` + `CHECK`.** Maps directly onto TypeScript union types and is easy to read in the DDL.
 - **Money as `numeric(12,2)` in `value_rm`.** Exact decimals, no floating-point rounding.
 - **Activities link to a contact, an opportunity, or both.** Two nullable foreign keys with a `CHECK` that at least one is set; simpler to query than a polymorphic `(target_type, target_id)` pair.
+  Activities logged from an opportunity's page also store that opportunity's contact, so a contact's timeline includes them without extra joins.
+- **One contact per email.** A unique index on `lower(email)` (where email is set). The form shows a clear error for duplicates, and the Meeting Notes Extractor (M5) can match people to existing contacts by email.
 - **Deleting a contact deletes its opportunities and activities** (`ON DELETE CASCADE`). The UI confirms first and says what else will be deleted. See §8 for the more realistic alternative.
-- **Dashboard metrics:** total contacts = all `contacts` rows; open opportunities = stage not in (`won`, `lost`); total value = sum of `value_rm` (open pipeline value shown too); recent activity = latest `activities` by `occurred_at`.
+- **Dashboard metrics:** total contacts = all `contacts` rows; open opportunities = stage not in (`won`, `lost`); total value = sum of `value_rm` across all stages (open pipeline and won value shown as sub-lines); recent activity = latest 10 `activities` by `occurred_at`. The feed shows only logged activities, not system events like "stage changed", so it stays meaningful.
 - **RAG tables:** `documents` stores one row per source file with a content hash so re-ingesting unchanged files is skipped. `chunks` keeps page range and section heading for citations, and an HNSW index with cosine distance on `embedding`. _(M2 may refine these columns.)_
+
+### CRM implementation (M1)
+
+- **Reads:** server components call plain query functions in `lib/crm/*.ts` (raw SQL via postgres.js). Nothing is cached: CRM data is small and must be fresh after every edit. Each route has a `loading.tsx` so navigation shows a skeleton straight away while the query runs.
+- **Writes:** Server Actions (`app/**/actions.ts`) validate `FormData` with zod schemas from `lib/crm/schemas.ts`, call the query function, then `refresh()` so the page re-renders in the same round trip. Validation errors come back as field errors through `useActionState`. The same schemas will validate the LLM's output in M5.
+- **Numbers:** postgres.js returns `bigint` and `numeric` as strings; `lib/db.ts` parses both to numbers once at the driver level, so no query can forget.
+- **Kanban:** native HTML5 drag-and-drop with `useOptimistic`, so the card moves at once and snaps back if the save fails. Keyboard and touch users change the stage from a dropdown on the opportunity's page.
+- **Time zone:** all dates are shown and entered in Malaysia time (`Asia/Kuala_Lumpur`), whatever the server's or the browser's zone.
 
 ## 5. RAG design _(M2–M3)_
 
@@ -174,3 +184,6 @@ To be written in M4: the question set with expected source documents, hit rate @
   - read all CRM data through `active_contacts` / `active_opportunities` views, so no query can forget to hide archived rows (including the dashboard totals and the Kanban board, where an archived contact's opportunities shouldn't count);
   - an "Archived" filter with a Restore button;
   - a real permanent delete for erasure requests under Malaysia's PDPA, since archiving alone doesn't remove personal data.
+- **Pagination and sorting on the leads list.** The list is capped at 200 rows (fine for the demo's 15). A real list needs keyset pagination and sortable columns, and search would move to Postgres full-text or trigram indexes once `ILIKE` gets slow.
+- **Accessible drag-and-drop.** Native HTML5 drag-and-drop has no keyboard or touch support; the stage dropdown covers it, but a library like `@dnd-kit` would make the board itself accessible and allow reordering within a column.
+- **An events table for the activity feed.** Stage changes and edits aren't recorded anywhere. An append-only `events` table would give an audit trail and a richer feed without mixing system events into the activities that people log.
