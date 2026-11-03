@@ -77,8 +77,8 @@ Decide these in the milestone listed; record the outcome + reason in that milest
 | D2 | Embedding model | Gemini / Ollama `nomic-embed-text` | **Decided: `gemini-embedding-001` @ 768 dims** | ✅ 11-03 |
 | D3 | Local DB | Docker pgvector / PGlite / SQLite / Supabase CLI | **Decided: Docker Compose `pgvector/pgvector`** | ✅ 11-03 |
 | D4 | DB access | Drizzle / Prisma / raw SQL | **Decided: raw SQL + postgres.js** | ✅ 11-03 |
-| D5 | Ingestion language | TypeScript vs Python | Decide after testing PDF page extraction on real docs | M2 |
-| D6 | Chunking | Fixed-size vs heading/section-aware | Section-aware with size cap + overlap | M2 |
+| D5 | Ingestion language | TypeScript vs Python | **Decided: TypeScript + `unpdf`** (tested on all 9 docs: text layer on every page, per-page output) | ✅ 11-04 |
+| D6 | Chunking | Fixed-size vs heading/section-aware | **Decided: section-aware**, ~1,500-char cap, 1-paragraph overlap; tuned in M4 | ✅ 11-04 |
 | D7 | Rerank vs metadata filter | LLM rerank, cross-encoder, doc-type filter | Doc-type/document filter first; rerank if time allows | M3 |
 | D8 | Optional add-on | A Copilot / B Meeting Notes / C Open | **Decided: B, Meeting Notes Extractor.** Reuses the Activity Log; shows schema-enforced structured output plus human-in-the-loop, which RAG doesn't cover | ✅ 11-03 |
 | D9 | Deploy target | none / Vercel + Supabase | **None** (recording instead); revisit only if M6 has spare time | M6 |
