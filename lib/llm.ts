@@ -13,12 +13,17 @@ export type EmbedTask = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 let client: GoogleGenAI | undefined;
 
 function gemini(): GoogleGenAI {
-  client ??= new GoogleGenAI({ apiKey: requireEnv("GEMINI_API_KEY") });
+  client ??= new GoogleGenAI({
+    apiKey: requireEnv("GEMINI_API_KEY"),
+    // The SDK's defaults (5 attempts, backoff up to 60s) let one call hang for
+    // minutes when the free tier is overloaded. Fail within ~1.5 minutes instead.
+    httpOptions: { timeout: 30_000, retryOptions: { attempts: 3, maxDelay: 4 } },
+  });
   return client;
 }
 
 export function chatModel(): string {
-  return process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash";
+  return process.env.GEMINI_CHAT_MODEL || "gemini-3.5-flash";
 }
 
 export function embedModel(): string {

@@ -67,10 +67,15 @@ The brief's preferred stack, kept as local as possible. A reviewer needs Node, D
 | App | Next.js (App Router) + TypeScript, Tailwind + shadcn/ui | Brief's preferred stack. One app and one language for UI, API and scripts. |
 | Database | PostgreSQL + pgvector in one Docker Compose service (`pgvector/pgvector` image) | The brief's preferred vector store. CRM data and vectors in one DB; Docker is the only extra prerequisite. |
 | DB access | `postgres` (postgres.js) + raw SQL; schema in `db/schema.sql`, loaded on first container start | No ORM or migration tool. Vector search is raw SQL anyway, and plain SQL keeps the retrieval query easy to read. Schema changes: reset the DB volume. |
-| LLM | Gemini Flash via `@google/genai` | Named in the brief, has a free tier with no card. |
+| LLM | Gemini Flash (`gemini-3.5-flash`, set by `GEMINI_CHAT_MODEL`) via `@google/genai` | Named in the brief, has a free tier with no card. Chosen in M0 by probing the models the key can use: the newer 3.7 / 3.8 Flash returned 503 "high demand" on every call that day; 3.5 was the fastest that answered. |
 | Embeddings | `gemini-embedding-001`, output reduced to 768 dims | Same key as the LLM. pgvector's HNSW index supports up to 2,000 dims; the model's default is 3,072. |
 | Ingestion | TypeScript script run with `tsx` | Same runtime as the app. _(M2: confirm PDF page extraction quality in Node; Python is the fallback.)_ |
 | Deploy | None; a screen recording instead | Keeps everything local. |
+
+**Gemini free tier, things to know**
+- Google may use free-tier prompts to improve its products. Fine here: we only send public tax documents and made-up CRM data. A real deployment would use a paid tier.
+- Model IDs change: `gemini-2.5-flash`, the planned default, was already closed to new users. Model names live in env vars, and `npm run check:gemini` lists what a key can use.
+- The free tier is often overloaded (503 / 504). The SDK's default retries could leave one call hanging for minutes, so `lib/llm.ts` sets a 30s timeout and 3 attempts. _(M3: fall back to another model and show a clear error in the UI.)_
 
 **Alternatives considered**
 - **Local LLM via Ollama:** the brief lists API providers, reviewers would have to download several GB, and small local models follow citation and refusal instructions less reliably.
@@ -84,8 +89,8 @@ The brief's preferred stack, kept as local as possible. A reviewer needs Node, D
 ```mermaid
 erDiagram
   contacts ||--o{ opportunities : has
-  contacts ||--o{ activities : "logged against"
-  opportunities ||--o{ activities : "logged against"
+  contacts |o--o{ activities : "logged against"
+  opportunities |o--o{ activities : "logged against"
   documents ||--o{ chunks : "split into"
 
   contacts {

@@ -1,7 +1,7 @@
 # M0 — Foundations & design
 
-**Status:** In progress
-**Dates:** 2026-11-03 → 2026-11-03
+**Status:** Done
+**Dates:** 2026-11-03 → 2026-11-04
 **Branch / PR:** `hanswys/lrfq7`
 
 ## 1. Goal
@@ -75,8 +75,8 @@ flowchart LR
 ```mermaid
 erDiagram
   contacts ||--o{ opportunities : has
-  contacts ||--o{ activities : "logged against"
-  opportunities ||--o{ activities : "logged against"
+  contacts |o--o{ activities : "logged against"
+  opportunities |o--o{ activities : "logged against"
   documents ||--o{ chunks : "split into"
 
   contacts {
@@ -251,13 +251,13 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
 - [x] Create `ARCHITECTURE.md` skeleton with all brief sections: Overview, Stack choice & justification, Component diagram, Data model, RAG design (stub → M2/M3), Option B design (stub → M5), Evaluation results (stub → M4), What I would do differently
 - [x] Fill in the component diagram (§3.1), data model (§3.2) and stack justification (from PLAN §3, including alternatives considered)
 - [x] Seed "What I would do differently" with the archive/soft-delete design (option C above): `archived_at`, `active_contacts` / `active_opportunities` views so filters can't be forgotten, restore UI, eventual hard purge for PDPA erasure
-- [ ] Commit the design on its own, so git history shows design before code
+- [x] Commit the design on its own, so git history shows design before code
 
 **Scaffold**
 - [x] `create-next-app` (TypeScript, App Router, Tailwind, ESLint, `@/*` alias, no `src/`)
 - [x] `shadcn` init + a couple of base components (button, card)
 - [x] `.nvmrc` + `engines` for Node LTS
-- [x] Install `postgres`, `@google/genai`, `tsx`, `dotenv`
+- [x] Install `postgres`, `@google/genai`, `tsx` (no `dotenv`: scripts use Node's `--env-file-if-exists`)
 
 **Database**
 - [x] `docker-compose.yml`: `pgvector/pgvector:pg17`, user/db `crm`, port 5433, named volume, `db/schema.sql` mounted into init dir, healthcheck (`pg_isready`)
@@ -267,30 +267,30 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
 - [x] npm scripts `db:up`, `db:reset`, `db:psql`
 
 **Gemini**
-- [ ] Get a free AI Studio key; put it in `.env` (gitignored) and add a placeholder to `.env.example`
-- [ ] Confirm current model IDs (list models via the API) and record the chosen chat model
+- [x] Get a free AI Studio key; put it in `.env` (gitignored) and add a placeholder to `.env.example`
+- [x] Confirm current model IDs (list models via the API) and record the chosen chat model
 - [x] `lib/llm.ts` with `generate()` and `embed()` (passes `outputDimensionality: 768` and a task type)
 - [x] `scripts/check-gemini.ts`: embed one string (assert length 768), generate one short reply, print latency
-- [ ] Record free-tier rate limits (RPM / RPD / batch size for embeddings) in §7, since M2 ingestion has to respect them
+- [ ] Record free-tier rate limits (RPM / RPD / batch size for embeddings) in §7, since M2 ingestion has to respect them. _Not published in Google's docs any more; only shown per account in the AI Studio dashboard. Carried over to M2._
 
 **Housekeeping**
 - [x] `.gitignore` covers `.env*` (except `.env.example`), `node_modules`, `.next`
 - [x] Minimal README: prerequisites + the 4 setup commands (gets fleshed out in M6)
-- [ ] Add M0 entries to `docs/ai-usage-log.md`
+- [x] Add M0 entries to `docs/ai-usage-log.md`
 
 ## 5. Exit criteria / how to verify
 
-- [ ] From a clean checkout: `cp .env.example .env` (+ key) → `npm install` → `npm run db:up` → `npm run dev` → `/` shows "DB connected", the pgvector version, and 0 rows in all 5 tables
-- [ ] `npm run db:reset` brings the DB back to an empty schema without errors
-- [ ] `npm run check:gemini` prints a 768-dim embedding length and a generated reply
-- [ ] `ARCHITECTURE.md` has the component diagram, data model and stack justification; it renders on GitHub
-- [ ] `git grep` for the API key finds nothing; `.env` is untracked
+- [x] `cp .env.example .env` (+ key) → `npm install` → `npm run db:up` → `npm run dev` → `/` shows "DB connected", the pgvector version, and 0 rows in all 5 tables _(verified in this checkout; full fresh-clone test is in M6)_
+- [x] `npm run db:reset` brings the DB back to an empty schema without errors
+- [x] `npm run check:gemini` prints a 768-dim embedding length and a generated reply
+- [x] `ARCHITECTURE.md` has the component diagram, data model and stack justification; both Mermaid diagrams render (checked locally with mermaid-cli)
+- [x] `git grep` for the API key finds nothing; `.env` is untracked
 - [x] `npm run lint` and `npm run build` pass
 
 ## 6. Risks & open questions
 
 - **Gemini model churn / free-tier limits.** Model IDs and quotas change often. Keeping them in env vars plus `check:gemini` means a reviewer can see quickly if something has moved. The free tier may use prompts for training; that's fine for public tax docs and fake CRM data, but worth a line in ARCHITECTURE.md.
-- **Embedding normalisation.** `gemini-embedding-001` only returns normalised vectors at the full 3072 dims. At 768 we should L2-normalise ourselves (or rely on cosine distance, which doesn't care). Decide in M2; `embed()` can normalise from day one.
+- **Embedding normalisation.** Resolved: `embed()` scales every vector to length 1 (verified: length 1.0000).
 - **Init scripts only run on an empty volume.** Editing `schema.sql` does nothing until `db:reset`. Document this in the README.
 - **postgres.js `numeric` / `bigint` come back as strings.** Parse at the query boundary in M1 so the UI never sees strings for money.
 - **Reviewer without Docker.** Accepted: Docker is the one stated prerequisite (PLAN §3).
@@ -298,8 +298,20 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
 
 ## 7. Notes & outcome (fill in at the end)
 
-- Chosen chat model ID: _pending Gemini key_
-- Free-tier limits observed: _pending Gemini key_
+- **Chat model: `gemini-3.5-flash`** (env `GEMINI_CHAT_MODEL`). `gemini-2.5-flash` returned 404 "no longer available to new users". Probe with no retries and a 30s timeout, 3 calls each:
+
+  | Model | Result |
+  |---|---|
+  | `gemini-3.8-flash` | 503 ×3 ("high demand") |
+  | `gemini-3.7-flash` | 503 ×2, 504 timeout ×1 |
+  | `gemini-3.6-flash` | OK 2.5s, 504, OK 14.3s |
+  | `gemini-3.5-flash` | OK 1.6s, 504, 504; then OK 2.9s in `check:gemini` |
+  | `gemini-flash-latest` (alias) | 503 |
+
+  The free tier is unreliable whichever model we pick. Revisit the choice when M3 starts; M3 needs a fallback model plus a clear error in the UI.
+- **Embeddings: `gemini-embedding-001` @ 768 dims works.** About 0.4s per call; vectors come back scaled to length 1 by `embed()`. `gemini-embedding-2` (and `-2-preview`) also exist now; decide in M2 whether to switch (D2).
+- **SDK retry defaults are dangerous for a chat UI.** `@google/genai` retries 408/429/5xx up to 5 times with backoff up to 60s, and one probe hung for 7+ minutes. `lib/llm.ts` now sets `timeout: 30s`, `attempts: 3`, `maxDelay: 4s`.
+- **Free-tier limits: not recorded.** Google's rate-limits page no longer lists them; they're only shown per account in AI Studio. Check them at the start of M2, before batching embeddings.
 - Deviations from plan:
   - Versions are newer than expected: Next.js 16.4 (Cache Components on by default), postgres.js 4, `@google/genai` 2. Read their bundled docs first.
   - Cache Components: DB reads must sit inside `<Suspense>` and call `connection()`, otherwise Next tries to run them at build time.
@@ -308,4 +320,8 @@ Embedding dims (768) are fixed in `schema.sql`, so they're a constant in `lib/ll
   - `next build` needs a `.env` because `lib/db.ts` checks `DATABASE_URL` when it's first imported. Kept on purpose: README step 1 creates `.env`.
   - No `dotenv`: scripts use Node's `--env-file-if-exists=.env` (hence `engines: node >=22.9`).
   - shadcn now uses its own `cn` package instead of `clsx` + `tailwind-merge`.
-  - Docker wasn't installed on the dev machine; installing Docker Desktop.
+  - Docker wasn't installed on the dev machine; installed Docker Desktop (29.9.2).
+  - shadcn's init wrote `--font-sans: var(--font-sans)` (refers to itself), so the page fell back to a serif font. Pointed it at `--font-geist-sans`. Caught from a screenshot, not from lint/build.
+  - Scripts run as CommonJS (no `"type": "module"`), so top-level `await` needs `.mts` or a `main()` wrapper.
+  - Verified the schema rules by hand: bad status/stage and an activity with no target are rejected; deleting a contact removed its 2 opportunities and both activities; `db:reset` rebuilds a clean schema.
+  - ERD fix: activities link to contacts and opportunities as zero-or-one (`|o--o{`), since both FKs are nullable.
