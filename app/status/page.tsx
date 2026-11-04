@@ -69,6 +69,11 @@ async function DbStatus() {
           ))}
         </tbody>
       </table>
+      {Number(health.counts.chunks) === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Knowledge base is empty. Load the tax documents with <code>npm run ingest</code>.
+        </p>
+      )}
     </CardContent>
   );
 }

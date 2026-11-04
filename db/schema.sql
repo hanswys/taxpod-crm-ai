@@ -50,29 +50,36 @@ create index activities_occurred_at_idx on activities (occurred_at desc);
 create index activities_contact_id_idx on activities (contact_id);
 create index activities_opportunity_id_idx on activities (opportunity_id);
 
--- RAG (provisional: M2 may change these) -----------------------------------
+-- RAG ----------------------------------------------------------------------
+-- Filled by npm run ingest from lib/rag/sources.ts. Never touched by npm run seed.
 
 create table documents (
   id            bigint generated always as identity primary key,
+  slug          text not null unique,  -- stable ID from the manifest; the M4 eval names expected sources by slug
   title         text not null,
-  doc_type      text not null,
-  source_url    text,
-  file_path     text not null unique,
-  content_hash  text not null,  -- re-ingest is skipped when unchanged
-  page_count    int,
+  short_title   text not null,         -- compact citation label, e.g. "PR 8/2025"
+  doc_type      text not null check (doc_type in ('public_ruling', 'e_invoice', 'sst')),
+  issuer        text not null,         -- LHDN or RMCD
+  published_on  date,
+  source_url    text not null,
+  file_path     text not null,         -- under public/, so citations can link to /documents/<file>#page=N
+  content_hash  text not null,         -- file + manifest entry + chunker + embedding model; unchanged = skipped
+  page_count    int not null,
   ingested_at   timestamptz not null default now()
 );
+create index documents_doc_type_idx on documents (doc_type);
 
 create table chunks (
   id           bigint generated always as identity primary key,
   document_id  bigint not null references documents (id) on delete cascade,
   chunk_index  int not null,
   content      text not null,
-  page_start   int,
-  page_end     int,
-  section      text,
-  token_count  int,
-  embedding    vector(768) not null,  -- must match EMBEDDING_DIMS in lib/llm.ts
-  unique (document_id, chunk_index)
+  page_start   int not null,           -- 1-based PDF page (what a PDF viewer and #page=N use)
+  page_end     int not null,
+  section      text,                   -- nearest heading, e.g. "1.6 Exemptions from implementing e-Invoice"
+  token_count  int not null,           -- estimate: characters / 4
+  embedding    vector(768) not null,   -- must match EMBEDDING_DIMS in lib/llm.ts
+  unique (document_id, chunk_index),
+  check (page_start <= page_end)
 );
 create index chunks_embedding_idx on chunks using hnsw (embedding vector_cosine_ops);
