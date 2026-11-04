@@ -3,10 +3,11 @@ import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { sql } from "@/lib/db";
+import { chatModel, embedModel, fallbackChatModel } from "@/lib/llm";
 
 // Health page: proves the app can reach Postgres and that the schema is loaded.
 
-const TABLES = ["contacts", "opportunities", "activities", "documents", "chunks"] as const;
+const TABLES = ["contacts", "opportunities", "activities", "documents", "chunks", "rag_queries"] as const;
 
 type DbHealth =
   | { ok: true; pgvector: string; counts: Record<string, string> }
@@ -23,6 +24,7 @@ async function checkDb(): Promise<DbHealth> {
       union all select 'activities', count(*) from activities
       union all select 'documents', count(*) from documents
       union all select 'chunks', count(*) from chunks
+      union all select 'rag_queries', count(*) from rag_queries
     `;
     return { ok: true, pgvector: version, counts: Object.fromEntries(rows.map((r) => [r.table_name, r.rows])) };
   } catch (error) {
@@ -74,6 +76,14 @@ async function DbStatus() {
           Knowledge base is empty. Load the tax documents with <code>npm run ingest</code>.
         </p>
       )}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t pt-3 text-sm">
+        <dt className="text-muted-foreground">Chat model</dt>
+        <dd className="font-mono">{chatModel()}</dd>
+        <dt className="text-muted-foreground">Fallback model</dt>
+        <dd className="font-mono">{fallbackChatModel()}</dd>
+        <dt className="text-muted-foreground">Embedding model</dt>
+        <dd className="font-mono">{embedModel()}</dd>
+      </dl>
     </CardContent>
   );
 }

@@ -79,7 +79,7 @@ Decide these in the milestone listed; record the outcome + reason in that milest
 | D4 | DB access | Drizzle / Prisma / raw SQL | **Decided: raw SQL + postgres.js** | ✅ 11-03 |
 | D5 | Ingestion language | TypeScript vs Python | **Decided: TypeScript + `unpdf`** (tested on all 9 docs: text layer on every page, per-page output) | ✅ 11-04 |
 | D6 | Chunking | Fixed-size vs heading/section-aware | **Decided: section-aware**, ~1,500-char cap, 1-paragraph overlap; tuned in M4 | ✅ 11-04 |
-| D7 | Rerank vs metadata filter | LLM rerank, cross-encoder, doc-type filter | Doc-type/document filter first; rerank if time allows | M3 |
+| D7 | Rerank vs metadata filter | LLM rerank, cross-encoder, doc-type filter | **Decided: `doc_type` filter** in M3; LLM rerank tried in M4 and kept only if it lifts hit rate | ✅ 11-04 |
 | D8 | Optional add-on | A Copilot / B Meeting Notes / C Open | **Decided: B, Meeting Notes Extractor.** Reuses the Activity Log; shows schema-enforced structured output plus human-in-the-loop, which RAG doesn't cover | ✅ 11-03 |
 | D9 | Deploy target | none / Vercel + Supabase | **None** (recording instead); revisit only if M6 has spare time | M6 |
 

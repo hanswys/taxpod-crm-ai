@@ -83,3 +83,21 @@ create table chunks (
   check (page_start <= page_end)
 );
 create index chunks_embedding_idx on chunks using hnsw (embedding vector_cosine_ops);
+
+-- One row per Tax Q&A question (M3): what was retrieved and what came back, so a bad
+-- answer can be traced. Existing DB without this table: npm run db:psql, paste this block.
+create table if not exists rag_queries (
+  id                bigint generated always as identity primary key,
+  question          text not null,
+  doc_type          text,                     -- filter used; null = all documents
+  chunk_ids         bigint[] not null,        -- retrieved, best first
+  scores            real[] not null,          -- cosine similarity, same order
+  outcome           text not null check (outcome in ('answer', 'not_found', 'error')),
+  not_found_reason  text check (not_found_reason in ('low_similarity', 'model_declined', 'no_valid_citations')),
+  answer            text,                     -- the model's raw answer, before citation clean-up
+  model             text,                     -- which model answered (primary or fallback)
+  latency_ms        int,
+  error             text,
+  created_at        timestamptz not null default now()
+);
+create index if not exists rag_queries_created_at_idx on rag_queries (created_at desc);
