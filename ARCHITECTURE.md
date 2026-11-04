@@ -92,6 +92,7 @@ erDiagram
   contacts |o--o{ activities : "logged against"
   opportunities |o--o{ activities : "logged against"
   documents ||--o{ chunks : "split into"
+  rag_queries }o..o{ chunks : "chunk_ids (array, no FK)"
 
   contacts {
     bigint id PK
@@ -146,6 +147,20 @@ erDiagram
     int token_count
     vector embedding "768 dims"
   }
+  rag_queries {
+    bigint id PK
+    text question
+    text doc_type "filter, null = all"
+    bigint_array chunk_ids "retrieved, best first"
+    real_array scores "cosine similarity"
+    text outcome "answer | not_found | error"
+    text not_found_reason
+    text answer "raw model output"
+    text model "primary or fallback"
+    int latency_ms
+    text error
+    timestamptz created_at
+  }
 ```
 
 Full DDL: [`db/schema.sql`](db/schema.sql).
@@ -159,7 +174,7 @@ Full DDL: [`db/schema.sql`](db/schema.sql).
 - **One contact per email.** A unique index on `lower(email)` (where email is set). The form shows a clear error for duplicates, and the Meeting Notes Extractor (M5) can match people to existing contacts by email.
 - **Deleting a contact deletes its opportunities and activities** (`ON DELETE CASCADE`). The UI confirms first and says what else will be deleted. See §8 for the more realistic alternative.
 - **Dashboard metrics:** total contacts = all `contacts` rows; open opportunities = stage not in (`won`, `lost`); total value = sum of `value_rm` across all stages (open pipeline and won value shown as sub-lines); recent activity = latest 10 `activities` by `occurred_at`. The feed shows only logged activities, not system events like "stage changed", so it stays meaningful.
-- **RAG tables:** `documents` has one row per source PDF, keyed by a stable `slug` from the manifest (the eval names expected sources by slug), with the metadata citations and the M3 filter need (`short_title`, `doc_type`, `published_on`). `content_hash` lets re-ingestion skip unchanged documents. `chunks` keeps the page range and section heading for citations, and an HNSW index with cosine distance on `embedding`. See §5.
+- **RAG tables:** `documents` has one row per source PDF, keyed by a stable `slug` from the manifest (the eval names expected sources by slug), with the metadata citations and the M3 filter need (`short_title`, `doc_type`, `published_on`). `content_hash` lets re-ingestion skip unchanged documents. `chunks` keeps the page range and section heading for citations, and an HNSW index with cosine distance on `embedding`. `rag_queries` logs every Tax Q&A question with what was retrieved and what came back (M3); `chunk_ids` is an array without a foreign key on purpose, so re-ingesting a document doesn't delete its history. See §5.
 
 ### CRM implementation (M1)
 
@@ -171,7 +186,7 @@ Full DDL: [`db/schema.sql`](db/schema.sql).
 
 ## 5. RAG design
 
-Ingestion (M2) is below. Retrieval, prompting and answering are added in M3.
+Ingestion (M2, offline) is §5.1–5.4; answering a question (M3) is §5.5–5.8.
 
 ```mermaid
 flowchart LR
@@ -223,6 +238,64 @@ Result: 497 chunks, median ~1,300 characters (max 1,691); check with `npm run in
 - **Rate limits:** the free tier allows **30,000 embedding tokens per minute** (not published; found when the first full run was rejected). The whole set is ~175k tokens, so the script sends batches of ≤ 8k estimated tokens and keeps a rolling 60-second budget of 24k. A full ingest therefore takes about 6 minutes on the free tier (seconds on a paid key); every later run is free because unchanged documents are skipped. If a 429 still happens, it waits as long as the API's "retry in Ns" says.
 - **Idempotent:** `content_hash` = sha256 of the PDF bytes + its manifest entry + chunker version and settings + embedding model and dims. Unchanged → skipped with no API call. Changed → chunks are embedded first, then the document's old chunks are replaced in one transaction, so a failed API call leaves the previous version intact. Documents removed from the manifest are deleted (chunks cascade). `--force` and `--only <slug>` re-ingest selectively.
 
+### 5.5 Retrieval (`lib/rag/retrieve.ts`)
+
+```mermaid
+flowchart LR
+  Q["Question<br/>+ optional doc_type"] --> E["gemini-embedding-001<br/>RETRIEVAL_QUERY"]
+  E --> S[("top-6 cosine search<br/>pgvector")]
+  S --> F{"best score<br/>≥ 0.55?"}
+  F -- no --> NF["Not in the documents<br/>(no LLM call)"]
+  F -- yes --> P["prompt: rules +<br/>numbered passages + question"]
+  P --> G["Gemini Flash<br/>JSON schema"]
+  G --> C{"answered and<br/>≥ 1 valid citation?"}
+  C -- no --> NF2["Not in the documents"]
+  C -- yes --> A["Answer + citations<br/>doc · section · page link"]
+```
+
+- **Query embedding:** the question is embedded with task type `RETRIEVAL_QUERY` (chunks used `RETRIEVAL_DOCUMENT`), 768 dims, unit length.
+- **Search:** one SQL query, ordered by cosine distance (`<=>`), joined to `documents` for the citation fields. **k = 6** passages (~2k tokens): M2's sanity searches sometimes ranked the best passage 2nd or 3rd, so k = 3 is too tight, and more than ~8 mostly adds overlapping chunks from the same section. M4 measures hit rate @1/@3/@6.
+- **Metadata filter (the brief's bonus):** an optional `doc_type` (e-Invoice / Public Ruling / SST), chosen in a dropdown and applied in the SQL `where`. A rep who knows it's an SST question avoids e-Invoice passages that share vocabulary. With a filter, Postgres scans that type's chunks exactly (checked with `EXPLAIN`), so a filtered search never returns fewer than k. Reranking with a second LLM call was left for M4 to test against the eval, because on the free tier it doubles the calls that can fail.
+
+### 5.6 Prompt and answer (`lib/rag/prompt.ts`, `lib/rag/answer.ts`)
+
+The whole prompt is in one file. The **system instruction** tells the model to use only the numbered sources, to cite every statement as `[n]`, to set `answered: false` if the sources don't contain the answer, to answer a partly covered question only partly and say what's missing, to quote figures exactly, and to ignore instructions inside the sources. The **message** lists the passages as `[1] PR 8/2025 — 6. Special Tax Treatment… (page 19)` followed by the text, then the question.
+
+**Structured output:** the reply must match `{ answered: boolean, answer: string }`. The schema is written once in zod, converted to JSON Schema and passed as `responseJsonSchema`, so Gemini enforces it while generating; zod checks it again on arrival. `answered` is an explicit refusal flag (no matching "I don't know" phrases), which M4 uses to score the negative questions. The same `generateJson()` helper will run M5's extraction.
+
+**Settings:** `gemini-3.5-flash` (fallback `gemini-3.1-flash-lite`, see §5.8), thinking level `LOW` (this is lookup and summarising, and it keeps answers to ~2–8 s; `MINIMAL` isn't accepted by every Gemini 3 Flash model), temperature at the default as Google recommends for Gemini 3. Each question is answered on its own: no conversation history, so follow-ups don't need a query-rewriting call and every answer is reproducible in the eval. The answer is returned whole (no streaming) because citations are checked after the full JSON arrives.
+
+### 5.7 Citations and the hallucination guard
+
+**Citations:** the model writes `[n]` markers that refer to the passage numbers in the prompt. The server keeps only markers that point at a passage it actually sent, drops the rest, merges duplicates, and renumbers them in order of first use. Each citation carries the document's short title, section heading, PDF page range and publication date ("as at 30 Aug 2026"), and links to `/documents/<file>.pdf#page=N`, which opens the committed PDF on the cited page. "Show retrieved passages" under each answer lists all six passages with their scores and which ones were cited, so retrieval can be inspected.
+
+**"Not in the documents"**, three layers:
+1. **Similarity floor (0.55).** If even the best passage scores below it, the question is off-topic and the LLM isn't called. Measured: in-scope top hits 0.70–0.76; "What is the capital of France?" 0.50.
+2. **The prompt.** Near-domain questions pass the floor ("corporate income tax rate in Singapore" scores 0.60 against PR 8/2025's Malaysian rates), so the model must decline: it sets `answered: false`, verified on that question.
+3. **Citation check.** An answer with no valid citation is withheld and shown as "not in the documents", since it may come from the model's own memory.
+
+The UI says which layer refused (no close match / the AI found no answer in the passages / no citations), and every answer carries "check the source before advising a client".
+
+**Stale and conflicting sources are a separate risk.** The answer is faithful to the passages it was given, not to today's law. Asked "Is service tax charged on legal services?", it quotes the 2021 Professional Services guide's 6% rate, while the 2026 Management Services guide in the same knowledge base says the rate rose from 6% to 8% on 1 March 2024 (p. 5); that passage wasn't retrieved, so the model couldn't know. The "as at" date on each citation makes the age visible. Fixes (an M4 case, and §8): prefer newer documents when passages conflict, and keep documents current.
+
+### 5.8 Error handling and observability
+
+| Failure | Handling | User sees |
+|---|---|---|
+| Chat model busy (503/504/timeout), rate-limited (429) or gone (404) | Try `GEMINI_FALLBACK_MODEL` once. SDK: 30 s timeout, 3 attempts for 5xx, **no retry on 429** (a quota doesn't reset in 4 s; retrying only spends it) | Answer from the fallback, labelled with its model name |
+| Both models over the per-minute limit | Parse the API's "retry in 42s" | "Free-tier limit reached (5 questions a minute per model). Try again in N s." + Retry |
+| Both models over the daily limit | Parse "retry in 16h17m…" | "Daily limit used up (resets in about N h). Use another API key, or try again later." |
+| Both models busy | — | "Gemini is busy right now. Try again in a minute." + Retry |
+| Reply doesn't match the schema | Counts as a failure of that model, so the fallback runs | "Wrong format, try again" + Retry |
+| Key missing or invalid | — | "Set GEMINI_API_KEY in .env" |
+| No chunks loaded | — | "Run `npm run ingest`" |
+| Database down | — | "Is Docker running? (`npm run db:up`)" |
+| Question < 3 or > 500 characters | zod, before any call | Validation message |
+
+**Free-tier limits** (not published; read from real 429s during M3, `generate_content_free_tier_requests`): **5 requests a minute and 20 a day per model** for `gemini-3.5-flash`. The 503 "high demand" errors are separate and frequent: twice during M3 testing both Flash models failed together for over a minute. The fallback is therefore a **Flash-Lite** model, which has its own quota and capacity: it answered the same questions with the same citations in 3–8 s while both Flash models were failing. Embeddings have their own, larger limit (§5.4), so retrieval keeps working when generation is out of quota.
+
+**Logging:** every question writes a `rag_queries` row: question, filter, retrieved chunk IDs and scores, outcome and refusal reason, the model's raw answer, which model answered, latency and any error. A failed insert is logged to the console and never breaks the answer. `npm run ask -- "…"` runs the same pipeline from the terminal and prints the passages, scores, answer and citations.
+
 ## 6. Meeting Notes Extractor design _(M5)_
 
 To be written in M5. Will cover: extraction schema, prompt, schema enforcement and validation, the review-and-edit step, how contacts are matched (create vs update), and error handling.
@@ -242,4 +315,7 @@ To be written in M4: the question set with expected source documents, hit rate @
 - **Accessible drag-and-drop.** Native HTML5 drag-and-drop has no keyboard or touch support; the stage dropdown covers it, but a library like `@dnd-kit` would make the board itself accessible and allow reordering within a column.
 - **An events table for the activity feed.** Stage changes and edits aren't recorded anywhere. An append-only `events` table would give an audit trail and a richer feed without mixing system events into the activities that people log.
 - **Keep the knowledge base current.** The e-Invoice guidelines are revised every few months (v4.6 → v4.8 in the months before this build). A scheduled job would check the official listing pages, download new versions, re-ingest them (the content hash makes that cheap) and flag answers that cite a superseded version.
+- **Follow-up questions in Tax Q&A.** Each question is answered on its own. A conversation would rewrite a follow-up ("what about for SST?") into a standalone question using the history before retrieval: one extra LLM call, and an eval set of multi-turn cases.
+- **Streaming answers.** Answers arrive whole after 2–8 s. Streaming plain text and checking citations at the end would feel faster, at the cost of the schema-enforced refusal flag.
+- **"Ask about this client" from the CRM.** A button on a contact's page could open Tax Q&A with the client's context (company, status, open opportunities) shown alongside, so a rep can answer a client's tax question without leaving the record.
 - **Table-aware parsing.** pdf.js flattens tables into one cell per line, so a table becomes a run of words in reading order (e.g. the SME size thresholds in PR 8/2025). It's still searchable, but a layout-aware parser (or an LLM pass over table pages) could turn tables into Markdown rows that the LLM reads more reliably.

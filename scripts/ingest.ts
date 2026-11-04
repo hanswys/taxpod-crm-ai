@@ -15,7 +15,7 @@ import { ApiError } from "@google/genai";
 import { CHUNK_OPTIONS, chunkDocument, embeddingText, type Chunk } from "@/lib/rag/chunk";
 import { cleanPages, extractPages } from "@/lib/rag/pdf";
 import { CHUNKER_VERSION, SOURCES, type Source } from "@/lib/rag/sources";
-import { embed, embedModel, EMBEDDING_DIMS } from "@/lib/llm";
+import { embed, embedModel, EMBEDDING_DIMS, toVector } from "@/lib/llm";
 
 const DOCUMENTS_DIR = "public/documents";
 const PREVIEW_FILE = "tmp/chunks.jsonl";
@@ -204,11 +204,6 @@ async function embedWithRetry(texts: string[]): Promise<number[][]> {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// pgvector's text format: "[0.1,0.2,…]"
-function toVector(values: number[]): string {
-  return `[${values.join(",")}]`;
-}
 
 function sizes(chunks: Chunk[]) {
   const lengths = chunks.map((c) => c.content.length);
