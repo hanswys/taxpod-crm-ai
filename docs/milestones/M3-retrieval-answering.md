@@ -2,7 +2,7 @@
 
 **Status:** Done
 **Dates:** 2026-11-04 → 2026-11-04
-**Branch / PR:** `hanswys/b1kk1`
+**Branch / PR:** `hanswys/m3-planning`, [#5](https://github.com/hanswys/taxpod-crm-ai/pull/5)
 
 ## 1. Goal
 
