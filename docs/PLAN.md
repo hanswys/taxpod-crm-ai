@@ -63,7 +63,7 @@ Verify the exact Gemini model IDs and free-tier rate limits in M0.
 | **M3** | RAG: retrieval, answering & UI | Top-k similarity search; metadata filter and/or rerank (bonus); grounded prompt; citations; "not in context" refusal; error handling; chat UI | Ask a question in the UI → cited answer; out-of-scope question → refusal | 11-06 → 11-07 |
 | **M4** | RAG: evaluation | 8–10 questions with expected source doc (+ a couple of negatives); eval script; hit rate @k; tuning; write up learnings | Reproducible `npm run eval` + results table in ARCHITECTURE.md | 11-07 |
 | **M5** | Optional add-on: Meeting Notes Extractor (Option B) | Paste notes → LLM extracts contacts, action items, opportunity info (schema-enforced) → user reviews/edits → confirm creates/updates contacts and logs activities | Feature works with human review step; design documented | 11-08 |
-| **M6** | Docs, polish & submission | Final README, ARCHITECTURE.md, AI_USAGE.md; deploy; screen recording; clean-clone test | Fresh clone runs from README alone; submission email sent | 11-09 → 11-10 |
+| **M6** | Docs, polish & submission | Final README, ARCHITECTURE.md, AI_USAGE.md; screen recording; clean-clone test ([plan](milestones/M6-submission.md)) | Fresh clone runs from README alone; submission email sent | 11-05 → 11-07 (deadline 11-10) |
 
 **Cut line if behind:** drop M5 first. Never cut M4 (evaluation) — it's explicitly assessed. Rerank/metadata filter in M3 is a bonus and can shrink to a single metadata filter.
 
@@ -81,7 +81,7 @@ Decide these in the milestone listed; record the outcome + reason in that milest
 | D6 | Chunking | Fixed-size vs heading/section-aware | **Decided: section-aware**, ~1,500-char cap, 1-paragraph overlap; tuned in M4 | ✅ 11-04 |
 | D7 | Rerank vs metadata filter | LLM rerank, cross-encoder, doc-type filter | **Decided: `doc_type` filter** in M3; LLM rerank tried in M4 and kept only if it lifts hit rate | ✅ 11-04 |
 | D8 | Optional add-on | A Copilot / B Meeting Notes / C Open | **Decided: B, Meeting Notes Extractor.** Reuses the Activity Log; shows schema-enforced structured output plus human-in-the-loop, which RAG doesn't cover | ✅ 11-03 |
-| D9 | Deploy target | none / Vercel + Supabase | **None** (recording instead); revisit only if M6 has spare time | M6 |
+| D9 | Deploy target | none / Vercel + Supabase | **Decided: none, recording only.** No login + a 20/day free key make a public copy fragile (anyone can edit data, quota runs out); see M6 D-a | ✅ 11-05 |
 
 ## 6. Working agreements
 
@@ -94,9 +94,9 @@ Decide these in the milestone listed; record the outcome + reason in that milest
 ## 7. Deliverables checklist
 
 - [ ] Repo runs locally from README (incl. ingestion)
-- [ ] `.env.example`, no real keys committed
-- [ ] README.md — setup, ingest, how to use RAG + add-on
-- [ ] ARCHITECTURE.md — component diagram, data model, RAG design, add-on design, eval results, "what I'd do differently"
-- [ ] AI_USAGE.md — tools, one real prompt/output/change/why, where AI helped / fell short
-- [ ] Deployed link and/or 3–5 min recording
+- [x] `.env.example`, no real keys committed (full history scanned 11-05)
+- [x] README.md — setup, ingest, how to use RAG + add-on
+- [x] ARCHITECTURE.md — component diagram, data model, RAG design, add-on design, eval results, "what I'd do differently"
+- [x] AI_USAGE.md — tools, one real prompt/output/change/why, where AI helped / fell short
+- [ ] 3–5 min recording (script: [`docs/demo-script.md`](demo-script.md))
 - [ ] Email HR: subject `[Full Name] — CRM Assessment Submission`
