@@ -72,15 +72,15 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 ## 4. Tasks
 
 - [x] Agree D-a … D-h
-- [ ] Set up this workspace: `.env`, own DB on a free port, copy chunks in (see memory "workspace setup")
-- [ ] Walk through every page in the browser; fix bugs only; `npm run lint`, `typecheck`, `build` green
-- [ ] README rewrite (§3.1)
-- [ ] ARCHITECTURE.md pass (§3.3)
-- [ ] Pull verbatim prompts/outputs from transcripts; draft AI_USAGE.md (§3.2); draft the log's `_fill in_` cells → you review
-- [ ] AI usage log: add the M6 rows
-- [ ] Clean-clone test (D-e); fix the README until it passes with no extra knowledge
-- [ ] `docs/demo-script.md` (D-f)
-- [ ] PLAN.md: milestone statuses, D9 outcome, deliverables checklist ticked
+- [x] Set up this workspace: `.env`, own DB on a free port, copy chunks in (see memory "workspace setup")
+- [x] Walk through every page in the browser; fix bugs only; `npm run lint`, `typecheck`, `build` green
+- [x] README rewrite (§3.1)
+- [x] ARCHITECTURE.md pass (§3.3)
+- [x] Pull verbatim prompts/outputs from transcripts; draft AI_USAGE.md (§3.2); draft the log's `_fill in_` cells → you review
+- [x] AI usage log: add the M6 rows
+- [ ] Clean-clone test (D-e); fix the README until it passes with no extra knowledge. **Done without a key** (clone → `npm install` → `db:up` → `seed` → `ingest --dry-run` 497 chunks → `build`; missing-key message is clear). **Still to do with a key:** real `ingest` from empty, one answer, one extraction, `npm run eval`
+- [x] `docs/demo-script.md` (D-f)
+- [x] PLAN.md: milestone statuses, D9 outcome, deliverables checklist ticked
 - [ ] PR merged to `main`
 - [ ] **You:** record and upload the video → add the link to the README (small follow-up commit)
 - [ ] **You:** make the repo public (D-b), final check of the GitHub page logged out
@@ -90,8 +90,8 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 ## 5. Exit criteria / how to verify
 
 - [ ] Fresh clone → README steps only → CRM, cited answer, refusal, extraction and `npm run eval` all work (D-e)
-- [ ] `npm run build` and `npm start` work (not just `dev`)
-- [ ] README, ARCHITECTURE.md, AI_USAGE.md cover every item in the brief's Deliverables (checked line by line against `docs/BRIEF.md`)
+- [x] `npm run build` and `npm start` work (not just `dev`): all 9 pages load with no console errors or failed requests
+- [x] README, ARCHITECTURE.md, AI_USAGE.md cover every item in the brief's Deliverables (checked line by line against `docs/BRIEF.md`; the video link is the only gap)
 - [ ] No secrets: `git log -p` scan for `AIza` / `AQ.` keys and `GEMINI_API_KEY=` values is clean, including AI_USAGE quotes
 - [ ] Video 3–5 min, plays logged out, linked in the README
 - [ ] Repo public and viewable logged out; email sent
@@ -102,5 +102,6 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 - **503 "high demand" during recording.** The fallback model covers it, but the answer may look different from the rehearsal. Do a full take and re-record if needed; scripted questions keep it short.
 - **Model names change.** `gemini-3.5-flash` etc. could be retired before the reviewer runs it (it happened on day 1). The README tells them to run `npm run check:gemini` and set the model in `.env`; the clean-clone test checks that path.
 - **Open:** your full name for the email subject, the HR address, and whether you used any AI tools besides Claude Code.
+- **Open: the brief is in the repo.** `docs/BRIEF.md` is the full case study, committed since PR #1 (the AI flagged this on 11-03). It isn't marked confidential, but a public repo publishes the company's assessment, and removing the file now leaves it in old commits and PR diffs. Decide before D-b.
 
 ## 7. Notes & outcome (fill in at the end)
