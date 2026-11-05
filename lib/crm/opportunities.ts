@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db";
+import { sql, type Db } from "@/lib/db";
 import type { OpportunityInput } from "@/lib/crm/schemas";
 import type { Opportunity, Stage } from "@/lib/crm/types";
 
@@ -18,14 +18,14 @@ export async function listOpportunitiesForContact(contactId: number): Promise<Op
   return sql<Opportunity[]>`${selectOpportunity} where o.contact_id = ${contactId} order by o.updated_at desc, o.id desc`;
 }
 
-export async function getOpportunity(id: number): Promise<Opportunity | null> {
-  const [opportunity] = await sql<Opportunity[]>`${selectOpportunity} where o.id = ${id}`;
+export async function getOpportunity(id: number, db: Db = sql): Promise<Opportunity | null> {
+  const [opportunity] = await db<Opportunity[]>`${selectOpportunity} where o.id = ${id}`;
   return opportunity ?? null;
 }
 
-export async function createOpportunity(input: OpportunityInput): Promise<{ id: number }> {
-  const [row] = await sql<{ id: number }[]>`
-    insert into opportunities ${sql(input, "contact_id", "title", "value_rm", "stage")}
+export async function createOpportunity(input: OpportunityInput, db: Db = sql): Promise<{ id: number }> {
+  const [row] = await db<{ id: number }[]>`
+    insert into opportunities ${db(input, "contact_id", "title", "value_rm", "stage")}
     returning id
   `;
   return row;
@@ -40,8 +40,8 @@ export async function updateOpportunity(id: number, input: OpportunityInput): Pr
   return result.count > 0;
 }
 
-export async function setOpportunityStage(id: number, stage: Stage): Promise<boolean> {
-  const result = await sql`
+export async function setOpportunityStage(id: number, stage: Stage, db: Db = sql): Promise<boolean> {
+  const result = await db`
     update opportunities set stage = ${stage}, updated_at = now()
     where id = ${id} and stage <> ${stage}
   `;

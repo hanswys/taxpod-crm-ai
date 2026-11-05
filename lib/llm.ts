@@ -46,6 +46,13 @@ export function rerankModel(): string {
   return process.env.GEMINI_RERANK_MODEL || "gemini-3.5-flash-lite";
 }
 
+// Meeting Notes extraction (M5). Flash-Lite first: on the eval:notes samples it matched Flash
+// item for item in 3–11 s instead of 16–18 s, and it leaves Flash's 20 requests a day for Tax Q&A.
+// Flash is the fallback.
+export function notesModel(): string {
+  return process.env.GEMINI_NOTES_MODEL || "gemini-3.1-flash-lite";
+}
+
 export function embedModel(): string {
   return process.env.GEMINI_EMBED_MODEL || "gemini-embedding-001";
 }

@@ -15,7 +15,8 @@
     "check:gemini": "tsx --env-file-if-exists=.env scripts/check-gemini.ts",
     "ingest": "tsx --env-file-if-exists=.env scripts/ingest.ts",
     "ask": "tsx --env-file-if-exists=.env scripts/ask.ts",
-    "eval": "tsx --env-file-if-exists=.env scripts/eval.ts"
+    "eval": "tsx --env-file-if-exists=.env scripts/eval.ts",
+    "eval:notes": "tsx --env-file-if-exists=.env scripts/eval-notes.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

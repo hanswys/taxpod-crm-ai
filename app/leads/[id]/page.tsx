@@ -70,6 +70,8 @@ export default async function ContactPage({ params }: PageProps<"/leads/[id]">) 
                 <dd>{contact.phone ?? "—"}</dd>
                 <dt className="text-muted-foreground">Company</dt>
                 <dd>{contact.company ?? "—"}</dd>
+                <dt className="text-muted-foreground">Role</dt>
+                <dd>{contact.role ?? "—"}</dd>
               </dl>
             </CardContent>
           </Card>

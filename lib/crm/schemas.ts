@@ -2,8 +2,8 @@ import { z } from "zod";
 import { parseDateTimeLocal } from "@/lib/format";
 import { ACTIVITY_TYPES, CONTACT_STATUSES, STAGES } from "@/lib/crm/types";
 
-// Input validation for CRM writes. Used by the server actions now and by the
-// Meeting Notes extractor in M5, so form input and LLM output pass the same rules.
+// Input validation for CRM writes. Used by the server actions and by the Meeting Notes
+// confirm (lib/notes/confirm.ts), so form input and reviewed LLM output pass the same rules.
 
 /** Form fields arrive as strings; treat blank as "not given". */
 const blankToNull = (value: unknown) =>
@@ -23,6 +23,7 @@ export const contactInput = z.object({
   ),
   phone: optionalText(50),
   company: optionalText(200),
+  role: optionalText(200),
   status: z.enum(CONTACT_STATUSES).default("lead"),
 });
 export type ContactInput = z.infer<typeof contactInput>;

@@ -12,6 +12,7 @@ create table contacts (
   email       text,
   phone       text,
   company     text,
+  role        text,                   -- job title, e.g. "Finance Manager" (M5)
   status      text not null default 'lead'
               check (status in ('lead', 'prospect', 'customer')),
   created_at  timestamptz not null default now(),
@@ -101,3 +102,25 @@ create table if not exists rag_queries (
   created_at        timestamptz not null default now()
 );
 create index if not exists rag_queries_created_at_idx on rag_queries (created_at desc);
+
+-- Meeting Notes (M5) -------------------------------------------------------
+-- Existing DB without these: npm run db:psql, paste this block (keeps all data).
+
+alter table contacts add column if not exists role text;
+
+-- One row per extraction: what the model proposed, and what the user confirmed after
+-- reviewing it, so a bad extraction can be traced and the human's edits are visible.
+create table if not exists meeting_notes (
+  id            bigint generated always as identity primary key,
+  notes         text not null,
+  meeting_at    timestamptz not null,
+  extraction    jsonb,                   -- the model's reply as returned (null on error)
+  model         text,
+  latency_ms    int,
+  error         text,
+  confirmed     jsonb,                   -- the reviewed payload the user confirmed
+  written       jsonb,                   -- ids created / updated / logged by the confirm
+  confirmed_at  timestamptz,
+  created_at    timestamptz not null default now()
+);
+create index if not exists meeting_notes_created_at_idx on meeting_notes (created_at desc);
