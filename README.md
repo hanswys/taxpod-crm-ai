@@ -21,7 +21,7 @@ npm install
 npm run db:up               # Postgres + pgvector on localhost:5433, schema loaded
 npm run check:gemini        # optional: checks the key and the model names (2 small calls)
 npm run seed                # demo contacts, opportunities and activities
-npm run ingest              # loads the 9 tax documents into the knowledge base (~6 min on a free key)
+npm run ingest              # loads the 9 tax documents into the knowledge base (about 7 min on a free key)
 npm run dev                 # http://localhost:3000
 ```
 

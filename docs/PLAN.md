@@ -93,7 +93,7 @@ Decide these in the milestone listed; record the outcome + reason in that milest
 
 ## 7. Deliverables checklist
 
-- [ ] Repo runs locally from README (incl. ingestion)
+- [x] Repo runs locally from README (incl. ingestion): fresh-clone test 11-05
 - [x] `.env.example`, no real keys committed (full history scanned 11-05)
 - [x] README.md — setup, ingest, how to use RAG + add-on
 - [x] ARCHITECTURE.md — component diagram, data model, RAG design, add-on design, eval results, "what I'd do differently"

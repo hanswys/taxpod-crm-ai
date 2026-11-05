@@ -78,7 +78,7 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 - [x] ARCHITECTURE.md pass (§3.3)
 - [x] Pull verbatim prompts/outputs from transcripts; draft AI_USAGE.md (§3.2); draft the log's `_fill in_` cells → you review
 - [x] AI usage log: add the M6 rows
-- [ ] Clean-clone test (D-e); fix the README until it passes with no extra knowledge. **Done without a key** (clone → `npm install` → `db:up` → `seed` → `ingest --dry-run` 497 chunks → `build`; missing-key message is clear). **Still to do with a key:** real `ingest` from empty, one answer, one extraction, `npm run eval`
+- [x] Clean-clone test (D-e), 2026-11-05: fresh clone → `npm install` → `db:up` → `seed` → `ingest` from an empty DB (497 chunks, 24 embed calls, 7 min 08 s; re-run skipped all in 0.7 s) → `build` → `eval` (same numbers as committed: doc hit 9/10 @1, 10/10 @10, MRR 0.911) → one answer (4 valid citations) and one refusal, both via the fallback model because Flash's daily quota was used up → one extraction (`eval:notes --only s3`, all as expected). Missing-key message checked. README fix: ingest time 6 → 7 min.
 - [x] `docs/demo-script.md` (D-f)
 - [x] PLAN.md: milestone statuses, D9 outcome, deliverables checklist ticked
 - [ ] PR merged to `main`
@@ -89,7 +89,7 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 
 ## 5. Exit criteria / how to verify
 
-- [ ] Fresh clone → README steps only → CRM, cited answer, refusal, extraction and `npm run eval` all work (D-e)
+- [x] Fresh clone → README steps only → CRM, cited answer, refusal, extraction and `npm run eval` all work (D-e)
 - [x] `npm run build` and `npm start` work (not just `dev`): all 9 pages load with no console errors or failed requests
 - [x] README, ARCHITECTURE.md, AI_USAGE.md cover every item in the brief's Deliverables (checked line by line against `docs/BRIEF.md`; the video link is the only gap)
 - [ ] No secrets: `git log -p` scan for `AIza` / `AQ.` keys and `GEMINI_API_KEY=` values is clean, including AI_USAGE quotes
