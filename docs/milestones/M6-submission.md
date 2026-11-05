@@ -101,7 +101,7 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 - **Quota on recording day.** The clean-clone test and recording both use answers. Do the clean-clone test the day before recording, or set `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite` for the test.
 - **503 "high demand" during recording.** The fallback model covers it, but the answer may look different from the rehearsal. Do a full take and re-record if needed; scripted questions keep it short.
 - **Model names change.** `gemini-3.5-flash` etc. could be retired before the reviewer runs it (it happened on day 1). The README tells them to run `npm run check:gemini` and set the model in `.env`; the clean-clone test checks that path.
-- **Open:** your full name for the email subject, the HR address, and whether you used any AI tools besides Claude Code.
-- **Open: the brief is in the repo.** `docs/BRIEF.md` is the full case study, committed since PR #1 (the AI flagged this on 11-03). It isn't marked confidential, but a public repo publishes the company's assessment, and removing the file now leaves it in old commits and PR diffs. Decide before D-b.
+- **Answered 11-05:** name and HR address for the email (kept out of the repo); tools: Claude Code and Conductor, nothing else.
+- **Decided 2026-11-05: remove the brief before going public (option A).** `docs/BRIEF.md` is now gitignored (kept locally for future sessions) and no longer in the tracked files. It remains in old commits and PR #1's diff, accepted as low risk. Original note: **the brief is in the repo.** `docs/BRIEF.md` is the full case study, committed since PR #1 (the AI flagged this on 11-03). It isn't marked confidential, but a public repo publishes the company's assessment, and removing the file now leaves it in old commits and PR diffs. Decide before D-b.
 
 ## 7. Notes & outcome (fill in at the end)

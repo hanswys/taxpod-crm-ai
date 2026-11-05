@@ -2,7 +2,7 @@
 
 High-level plan only. Each milestone gets its own detailed plan in `docs/milestones/MX-*.md`, written **when that milestone starts** (using `docs/milestones/_TEMPLATE.md`), not up front.
 
-- Brief: [`docs/BRIEF.md`](BRIEF.md)
+- Brief: `docs/BRIEF.md`, kept locally only (removed from the repo in M6 so the case study isn't published)
 - Timeline: brief received **Tue 2026-11-03** → submit by **Tue 2026-11-10** (7 calendar days, confirmed)
 
 ---

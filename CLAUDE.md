@@ -2,7 +2,7 @@
 
 Take-home case study: a lightweight CRM with a RAG Q&A module over Malaysian tax documents.
 
-- Requirements: `docs/BRIEF.md` (verbatim, don't edit)
+- Requirements: `docs/BRIEF.md` (verbatim, don't edit). Gitignored since M6 so the case study isn't published with the repo; if it's missing, ask the user for it
 - Overall plan, priorities, milestones, open decisions: `docs/PLAN.md`
 - Per-milestone detailed plans: `docs/milestones/MX-*.md`
 

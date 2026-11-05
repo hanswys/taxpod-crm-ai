@@ -149,4 +149,3 @@ Built in under a week with Claude Code, one milestone at a time. Each milestone 
 - [`docs/PLAN.md`](docs/PLAN.md): priorities, how the brief was interpreted, stack, milestones
 - [`docs/milestones/`](docs/milestones): the plan for each milestone (M0–M6), with every decision and its alternatives, and notes on what changed during the build
 - [`docs/ai-usage-log.md`](docs/ai-usage-log.md): the running log behind [AI_USAGE.md](AI_USAGE.md)
-- [`docs/BRIEF.md`](docs/BRIEF.md): the case study brief
