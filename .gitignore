@@ -43,3 +43,6 @@ next-env.d.ts
 
 # ingest --dry-run output
 /tmp
+
+# The case study brief stays local: not published with the repo (M6)
+docs/BRIEF.md

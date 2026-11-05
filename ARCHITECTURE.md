@@ -2,7 +2,27 @@
 
 A lightweight CRM (Leads, Opportunities, Activity Log, Dashboard) plus a RAG Q&A module over Malaysian tax documents, and a Meeting Notes Extractor as the optional add-on (Option B).
 
-> Status: design written in M0, before feature code. Sections marked _(M2)_, _(M3)_ etc. are filled in as those milestones land.
+> Written in stages: the component diagram, stack and data model (§2–4) were designed in M0, before any feature code, and each later section was written as its milestone was built and measured. The per-milestone plans, with every decision and its alternatives, are in [`docs/milestones/`](docs/milestones).
+
+## At a glance
+
+| Area | Decision | Why | Details |
+|---|---|---|---|
+| Stack | Next.js + TypeScript; PostgreSQL + pgvector in one Docker container; raw SQL; Gemini | The brief's preferred stack. A reviewer needs only Node, Docker and a free Gemini key | §3 |
+| Knowledge base | 9 public PDFs: 2 LHDN e-Invoice guidelines, 4 Public Rulings, 3 RMCD Service Tax guides, committed with source URL and date | Official URLs move and versions change; the eval needs a fixed set | §5.1 |
+| Chunking | Section-aware, using each PDF's own table of contents for headings; ≤ 1,500 characters, short-paragraph overlap; page range and heading on every chunk | An answer usually sits inside one section; pages and headings are the citations | §5.2–5.3 |
+| Embeddings | `gemini-embedding-001` at 768 dims; document title and heading path embedded with the text | Same key as the LLM; pgvector's HNSW index takes ≤ 2,000 dims | §5.4 |
+| Retrieval | Top-10 cosine search (HNSW), optional `doc_type` filter (the bonus). Hybrid search and LLM rerank were tried and dropped | The eval: hybrid was worse, rerank tied plain vector search | §5.5, §7 |
+| Answering | Gemini Flash under a JSON schema `{ answered, answer }`; numbered, dated passages; `[n]` citations checked by the server and linked to the PDF page | The server can verify every citation; refusal is an explicit flag, not a phrase | §5.6–5.7 |
+| Hallucination guard | Three layers: similarity floor (no LLM call) → model's `answered: false` → answers without a valid citation withheld | Off-topic and near-domain questions fail differently | §5.7 |
+| Errors | Fallback model on 503 / 429, specific messages (busy, per-minute, daily limit, no key, no chunks, DB down); every question logged to `rag_queries` | The free tier is often overloaded | §5.8 |
+| Add-on | Meeting Notes Extractor (Option B): schema-enforced extraction with an evidence quote per item, rule-based contact matching, human review, one-transaction write | Shows structured output and human-in-the-loop, which RAG doesn't | §6 |
+
+**Results** (§7): retrieval finds the expected document **first for 9/10** questions and **in the top 10 (what the model reads) for 10/10**, and the expected pages for 7/10 first and 10/10 in the top 10. Answers cited the expected document 10/10 and refused 3/3 out-of-scope questions. Meeting Notes: 8/8 people, 11/11 action items, 4/4 opportunities on 4 samples.
+
+**Main limitation found:** answers are faithful to the passages, not to today's law. An older SST guide (6%) can outrank the newer one that records the change to 8% (§5.7, §7.4).
+
+**Contents:** [1. Overview](#1-overview) · [2. Component diagram](#2-component-diagram) · [3. Stack choice](#3-stack-choice) · [4. Data model](#4-data-model) · [5. RAG design](#5-rag-design) · [6. Meeting Notes Extractor](#6-meeting-notes-extractor-design) · [7. Evaluation](#7-evaluation) · [8. What I would do differently](#8-what-i-would-do-differently-with-more-time)
 
 ## 1. Overview
 
@@ -72,12 +92,12 @@ The brief's preferred stack, kept as local as possible. A reviewer needs Node, D
 | LLM | Gemini Flash (`gemini-3.5-flash`, set by `GEMINI_CHAT_MODEL`) via `@google/genai` | Named in the brief, has a free tier with no card. Chosen in M0 by probing the models the key can use: the newer 3.7 / 3.8 Flash returned 503 "high demand" on every call that day; 3.5 was the fastest that answered. |
 | Embeddings | `gemini-embedding-001`, output reduced to 768 dims | Same key as the LLM. pgvector's HNSW index supports up to 2,000 dims; the model's default is 3,072. |
 | Ingestion | TypeScript script run with `tsx`; PDFs parsed with [`unpdf`](https://github.com/unjs/unpdf) (Mozilla pdf.js for Node) | Same runtime as the app. Tested on all 9 documents in M2: every page has a text layer, text comes out in reading order and per page. No Python needed. |
-| Deploy | None; a screen recording instead | Keeps everything local. |
+| Deploy | None; a 3–5 minute screen recording instead (linked in the README) | There's no login, so a public copy would let anyone edit or delete the data, and the free key's 20 answers a day would run out after a few visitors. A recording always works. Hosted Postgres (Supabase, Neon) would take `db/schema.sql` and a `pg_dump` of the chunks unchanged. |
 
 **Gemini free tier, things to know**
 - Google may use free-tier prompts to improve its products. Fine here: we only send public tax documents and made-up CRM data. A real deployment would use a paid tier.
 - Model IDs change: `gemini-2.5-flash`, the planned default, was already closed to new users. Model names live in env vars, and `npm run check:gemini` lists what a key can use.
-- The free tier is often overloaded (503 / 504). The SDK's default retries could leave one call hanging for minutes, so `lib/llm.ts` sets a 30s timeout and 3 attempts. _(M3: fall back to another model and show a clear error in the UI.)_
+- The free tier is often overloaded (503 / 504). The SDK's default retries could leave one call hanging for minutes, so `lib/llm.ts` sets a 30s timeout and 3 attempts, then falls back to a second model and shows a clear error (§5.8).
 
 **Alternatives considered**
 - **Local LLM via Ollama:** the brief lists API providers, reviewers would have to download several GB, and small local models follow citation and refusal instructions less reliably.
@@ -194,10 +214,10 @@ Full DDL: [`db/schema.sql`](db/schema.sql).
 - **RAG tables:** `documents` has one row per source PDF, keyed by a stable `slug` from the manifest (the eval names expected sources by slug), with the metadata citations and the M3 filter need (`short_title`, `doc_type`, `published_on`). `content_hash` lets re-ingestion skip unchanged documents. `chunks` keeps the page range and section heading for citations, and an HNSW index with cosine distance on `embedding`. `rag_queries` logs every Tax Q&A question with what was retrieved and what came back (M3); `chunk_ids` is an array without a foreign key on purpose, so re-ingesting a document doesn't delete its history. See §5.
 - **Meeting Notes tables (M5):** `contacts.role` holds the job title the extractor pulls out (the brief asks for "name, company, role"); it's also on the contact form. `meeting_notes` keeps each extraction and what the user confirmed, as `jsonb`, with the IDs written stored in the JSON rather than as foreign keys, for the same reason as `rag_queries`: deleting a contact later shouldn't delete the record of what happened. See §6.
 
-### CRM implementation (M1)
+### CRM implementation
 
 - **Reads:** server components call plain query functions in `lib/crm/*.ts` (raw SQL via postgres.js). Nothing is cached: CRM data is small and must be fresh after every edit. Each route has a `loading.tsx` so navigation shows a skeleton straight away while the query runs.
-- **Writes:** Server Actions (`app/**/actions.ts`) validate `FormData` with zod schemas from `lib/crm/schemas.ts`, call the query function, then `refresh()` so the page re-renders in the same round trip. Validation errors come back as field errors through `useActionState`. The same schemas will validate the LLM's output in M5.
+- **Writes:** Server Actions (`app/**/actions.ts`) validate `FormData` with zod schemas from `lib/crm/schemas.ts`, call the query function, then `refresh()` so the page re-renders in the same round trip. Validation errors come back as field errors through `useActionState`. The same schemas validate the Meeting Notes Extractor's confirmed output (§6.5).
 - **Numbers:** postgres.js returns `bigint` and `numeric` as strings; `lib/db.ts` parses both to numbers once at the driver level, so no query can forget.
 - **Kanban:** native HTML5 drag-and-drop with `useOptimistic`, so the card moves at once and snaps back if the save fails. Keyboard and touch users change the stage from a dropdown on the opportunity's page.
 - **Time zone:** all dates are shown and entered in Malaysia time (`Asia/Kuala_Lumpur`), whatever the server's or the browser's zone.
@@ -253,7 +273,7 @@ Result: 497 chunks, median ~1,300 characters (max 1,691); check with `npm run in
 
 - **What is embedded:** `<document title>\n<heading path>\n\n<chunk text>`. A chunk like "(e) Taxpayers with an annual turnover or revenue of less than RM1,000,000" doesn't say it's about e-Invoice exemptions; the title and heading path put that into the vector. `content` stores the chunk text alone, for the prompt and the UI.
 - **Model:** `gemini-embedding-001`, task type `RETRIEVAL_DOCUMENT` (questions will use `RETRIEVAL_QUERY`), 768 dims, scaled to unit length.
-- **Rate limits:** the free tier allows **30,000 embedding tokens per minute** (not published; found when the first full run was rejected). The whole set is ~175k tokens, so the script sends batches of ≤ 8k estimated tokens and keeps a rolling 60-second budget of 24k. A full ingest therefore takes about 6 minutes on the free tier (seconds on a paid key); every later run is free because unchanged documents are skipped. If a 429 still happens, it waits as long as the API's "retry in Ns" says.
+- **Rate limits:** the free tier allows **30,000 embedding tokens per minute** (not published; found when the first full run was rejected). The whole set is ~175k tokens, so the script sends batches of ≤ 8k estimated tokens and keeps a rolling 60-second budget of 24k. A full ingest therefore takes about 6–7 minutes on the free tier (seconds on a paid key); every later run is free because unchanged documents are skipped. If a 429 still happens, it waits as long as the API's "retry in Ns" says.
 - **Idempotent:** `content_hash` = sha256 of the PDF bytes + its manifest entry + chunker version and settings + embedding model and dims. Unchanged → skipped with no API call. Changed → chunks are embedded first, then the document's old chunks are replaced in one transaction, so a failed API call leaves the previous version intact. Documents removed from the manifest are deleted (chunks cascade). `--force` and `--only <slug>` re-ingest selectively.
 
 ### 5.5 Retrieval (`lib/rag/retrieve.ts`)
@@ -279,7 +299,7 @@ flowchart LR
 
 The whole prompt is in one file. The **system instruction** tells the model to use only the numbered sources, to cite every statement as `[n]`, to set `answered: false` if the sources don't contain the answer, to answer a partly covered question only partly and say what's missing, to quote figures exactly, to prefer the most recently published source when sources disagree (and mention the older figure), and to ignore instructions inside the sources. The **message** lists the passages as `[1] PR 8/2025, published 2025-12-22 — 6. Special Tax Treatment… (page 19)` followed by the text, then the question. The publication date and the "sources disagree" rule were added in M4 for conflicting SST rates (§5.7).
 
-**Structured output:** the reply must match `{ answered: boolean, answer: string }`. The schema is written once in zod, converted to JSON Schema and passed as `responseJsonSchema`, so Gemini enforces it while generating; zod checks it again on arrival. `answered` is an explicit refusal flag (no matching "I don't know" phrases), which M4 uses to score the negative questions. The same `generateJson()` helper will run M5's extraction.
+**Structured output:** the reply must match `{ answered: boolean, answer: string }`. The schema is written once in zod, converted to JSON Schema and passed as `responseJsonSchema`, so Gemini enforces it while generating; zod checks it again on arrival. `answered` is an explicit refusal flag (no matching "I don't know" phrases), which M4 uses to score the negative questions. The same `generateJson()` helper runs the Meeting Notes extraction (§6).
 
 **Settings:** `gemini-3.5-flash` (fallback `gemini-3.1-flash-lite`, see §5.8), thinking level `LOW` (this is lookup and summarising, and it keeps answers to ~2–8 s; `MINIMAL` isn't accepted by every Gemini 3 Flash model), temperature at the default as Google recommends for Gemini 3. Each question is answered on its own: no conversation history, so follow-ups don't need a query-rewriting call and every answer is reproducible in the eval. The answer is returned whole (no streaming) because citations are checked after the full JSON arrives.
 
@@ -314,7 +334,7 @@ The UI says which layer refused (no close match / the AI found no answer in the 
 
 **Logging:** every question writes a `rag_queries` row: question, filter, retrieved chunk IDs and scores, outcome and refusal reason, the model's raw answer, which model answered, latency and any error. A failed insert is logged to the console and never breaks the answer. `npm run ask -- "…"` runs the same pipeline from the terminal and prints the passages, scores, answer and citations.
 
-## 6. Meeting Notes Extractor design _(M5)_
+## 6. Meeting Notes Extractor design
 
 Option B. On `/notes`, a user pastes raw notes from a meeting or call. Gemini drafts the contacts, action items and opportunities it finds. The user reviews and edits the draft, and only their confirmed version is written to the CRM. Plan and decisions: [`docs/milestones/M5-meeting-notes.md`](docs/milestones/M5-meeting-notes.md). Code: [`lib/notes/`](lib/notes), [`app/notes/`](app/notes), [`components/notes/`](components/notes).
 
@@ -479,6 +499,7 @@ Full answers and citations: [`eval/results/vector-answers.md`](eval/results/vect
   - read all CRM data through `active_contacts` / `active_opportunities` views, so no query can forget to hide archived rows (including the dashboard totals and the Kanban board, where an archived contact's opportunities shouldn't count);
   - an "Archived" filter with a Restore button;
   - a real permanent delete for erasure requests under Malaysia's PDPA, since archiving alone doesn't remove personal data.
+- **A minimal migration runner.** `db/schema.sql` only runs on an empty database, so each later schema change (M3's `rag_queries`, M5's `meeting_notes` and `contacts.role`) meant a reset, which wipes the ingested chunks, or pasting SQL into psql. Numbered SQL files plus a `schema_migrations` table, applied by `npm run db:migrate`, would fix that without adding an ORM.
 - **Pagination and sorting on the leads list.** The list is capped at 200 rows (fine for the demo's 15). A real list needs keyset pagination and sortable columns, and search would move to Postgres full-text or trigram indexes once `ILIKE` gets slow.
 - **Accessible drag-and-drop.** Native HTML5 drag-and-drop has no keyboard or touch support; the stage dropdown covers it, but a library like `@dnd-kit` would make the board itself accessible and allow reordering within a column.
 - **An events table for the activity feed.** Stage changes and edits aren't recorded anywhere. An append-only `events` table would give an audit trail and a richer feed without mixing system events into the activities that people log.

@@ -1,68 +1,79 @@
 # taxPOD CRM + AI
 
-A lightweight CRM (Leads, Opportunities, Dashboard, Activity Log) with a RAG Q&A module over Malaysian tax documents, and a Meeting Notes Extractor that turns pasted notes into reviewed CRM records. Design: [ARCHITECTURE.md](ARCHITECTURE.md).
+A lightweight CRM (Leads, Opportunities, Dashboard, Activity Log) with a **RAG Q&A module over Malaysian tax documents**, and a **Meeting Notes Extractor** (Option B) that turns pasted notes into CRM records after a human review.
 
-> Work in progress. Full instructions (ingestion, RAG, Meeting Notes) are added as features land.
+- **Demo video (about 4 minutes):** _link added after recording_
+- **Design, RAG details and evaluation:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **How AI tools were used:** [AI_USAGE.md](AI_USAGE.md)
 
-## Prerequisites
+## Quick start
 
-- Node.js 22.9+ (`.nvmrc` pins the current LTS)
-- Docker (for Postgres + pgvector)
-- A free Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (no card needed)
+You need:
 
-## Setup
+- **Node.js 22.9+** (`.nvmrc` pins the current LTS: `nvm use`)
+- **Docker** (runs Postgres with pgvector)
+- **A free Gemini API key** from [Google AI Studio](https://aistudio.google.com/apikey) (no card needed)
 
 ```bash
-cp .env.example .env        # then set GEMINI_API_KEY
+git clone https://github.com/hanswys/taxpod-crm-ai.git && cd taxpod-crm-ai
+cp .env.example .env        # then paste your key into GEMINI_API_KEY
 npm install
 npm run db:up               # Postgres + pgvector on localhost:5433, schema loaded
-npm run seed                # optional: demo contacts, opportunities and activities
-npm run ingest              # load the tax documents into the knowledge base (needs GEMINI_API_KEY)
+npm run check:gemini        # optional: checks the key and the model names (2 small calls)
+npm run seed                # demo contacts, opportunities and activities
+npm run ingest              # loads the 9 tax documents into the knowledge base (about 7 min on a free key)
 npm run dev                 # http://localhost:3000
 ```
 
-If port 5433 is taken, set `DB_PORT` in `.env` and use the same port in `DATABASE_URL`.
+Port 5433 taken? Set `DB_PORT` in `.env` and use the same port in `DATABASE_URL`.
+
+`npm run ingest` ends with a table of the 9 documents and their chunk counts (497 in total). The free Gemini tier allows 30,000 embedding tokens a minute, so the script paces itself; with a paid key it takes seconds. Running it again takes under a second because unchanged documents are skipped.
+
+For a production build: `npm run build && npm start`.
 
 ## Using the CRM
 
 - **Dashboard** (`/`): total contacts, open opportunities, total value (RM) and the latest activity.
-- **Leads** (`/leads`): search by name, email, company or phone; filter by status; create, edit and delete. A lead's page shows their opportunities and activity timeline, where you can log calls, emails, meetings and notes.
+- **Leads** (`/leads`): search by name, email, company or phone; filter by status (Lead / Prospect / Customer); create, edit and delete. A lead's page shows their opportunities and activity timeline, where you can log calls, emails, meetings and notes.
 - **Opportunities** (`/opportunities`): a Kanban board by stage. Drag a card to change its stage, or use the stage dropdown on the opportunity's page.
 
-`npm run seed` replaces all CRM data (it never touches ingested documents). [System status](http://localhost:3000/status) shows whether the app can reach the database. `npm run check:gemini` checks your API key, lists the models it can use, and makes one embedding and one chat call.
-
-## Knowledge base (tax documents)
-
-The RAG module answers from 9 public Malaysian tax documents, committed in [`public/documents/`](public/documents) and listed with their source URLs and publication dates in [`lib/rag/sources.ts`](lib/rag/sources.ts):
-
-- **e-Invoice:** LHDN e-Invoice Guideline v4.8 and e-Invoice Specific Guideline v4.9
-- **Public Rulings:** PR 8/2025 (micro, small and medium companies), PR 7/2025 (individual gifts and deductions), PR 3/2024 (tax borne by employers), PR 4/2026 (small value assets)
-- **SST:** RMCD Service Tax guides on professional services, management services, and digital services by foreign service providers
-
-They are unmodified copies of public government guidance, kept in the repo because the official URLs move often.
-
-```bash
-npm run ingest                      # parse → chunk → embed → store; skips unchanged documents
-npm run ingest -- --dry-run         # parse and chunk only, no API key or DB needed; writes tmp/chunks.jsonl
-npm run ingest -- --only pr-8-2025  # one document (add --force to re-embed it even if unchanged)
-```
-
-A full ingest embeds ~500 chunks and takes about 6 minutes on a free Gemini key, which allows 30,000 embedding tokens per minute; the script paces itself to stay under that. Running it again takes under a second: documents whose file, manifest entry, chunking settings and embedding model haven't changed are skipped. How the pipeline works: [ARCHITECTURE.md §5](ARCHITECTURE.md#5-rag-design).
+`npm run seed` replaces all CRM data; it never touches the ingested documents. [System status](http://localhost:3000/status) shows the database connection, row counts and the models in use.
 
 ## Tax Q&A (RAG)
 
-Open **Tax Q&A** (`/ask`) and type a question, e.g. "Who is exempt from issuing e-Invoices?". Optionally limit the search to e-Invoice, Public Ruling or SST documents. The answer is written only from the passages found in the documents, with a numbered citation after each statement; click a citation to open the PDF on that page. "Show retrieved passages" lists the 10 passages sent to the model, with similarity scores. If the documents don't cover the question (try "What is the corporate income tax rate in Singapore?"), it says so instead of answering.
+Open **Tax Q&A** (`/ask`) and type a question, or click one of the examples. For instance:
+
+- "Who is exempt from issuing e-Invoices?"
+- "What is the current service tax rate on legal services?"
+- "What is the corporate income tax rate in Singapore?" (not covered by the documents, so it says so instead of answering)
+
+Optionally limit the search to e-Invoice, Public Ruling or SST documents. The answer is written only from the passages found, with a numbered citation after each statement; click a citation to open the PDF on that page. "Show retrieved passages" lists the 10 passages the model read, with similarity scores and which ones were cited.
 
 The same pipeline runs from the terminal:
 
 ```bash
 npm run ask -- "Is service tax charged on legal services?"
-npm run ask -- "Who is exempt from issuing e-Invoices?" --type sst   # filter: e_invoice | public_ruling | sst
+npm run ask -- "Who is exempt from issuing e-Invoices?" --type e_invoice   # filter: e_invoice | public_ruling | sst
 ```
 
-Every question is logged to the `rag_queries` table (retrieved chunks, scores, outcome, model, latency). The free Gemini tier allows **5 answers a minute and 20 a day** on `gemini-3.5-flash`, and often returns "high demand" errors. When the chat model is busy, rate-limited or out of quota, the app tries `GEMINI_FALLBACK_MODEL` (`gemini-3.1-flash-lite`, separate quota) once, then tells you when to retry. Design: [ARCHITECTURE.md §5.5–5.8](ARCHITECTURE.md#55-retrieval-librag-retrievets).
+**How it works:** the question is embedded with `gemini-embedding-001` → top-10 cosine search in pgvector (with the optional `doc_type` filter) → if nothing is close enough, it stops there → otherwise Gemini Flash answers from the numbered passages under a JSON schema → the server keeps only citations that point at passages it sent, and withholds answers with none. Every question is logged to the `rag_queries` table. Code: [`lib/rag/`](lib/rag). Design: [ARCHITECTURE.md §5](ARCHITECTURE.md#5-rag-design).
 
-## Meeting Notes (add-on)
+### The knowledge base
+
+9 public Malaysian tax documents, committed in [`public/documents/`](public/documents) and listed with their source URLs and publication dates in [`lib/rag/sources.ts`](lib/rag/sources.ts):
+
+- **e-Invoice (LHDN):** e-Invoice Guideline v4.8 and e-Invoice Specific Guideline v4.9
+- **Public Rulings (LHDN):** PR 8/2025 (micro, small and medium companies), PR 7/2025 (individual gifts and deductions), PR 3/2024 (tax borne by employers), PR 4/2026 (small value assets)
+- **SST (RMCD):** Service Tax guides on professional services, management services, and digital services by foreign service providers
+
+They are unmodified copies of public government guidance, kept in the repo because the official URLs move often.
+
+```bash
+npm run ingest -- --dry-run         # parse and chunk only, no key or DB needed; writes tmp/chunks.jsonl
+npm run ingest -- --only pr-8-2025  # one document (add --force to re-embed it even if unchanged)
+```
+
+## Meeting Notes (add-on, Option B)
 
 Open **Meeting Notes** (`/notes`), paste notes from a meeting or call (or click one of the samples), set the meeting date and time, and click **Extract**. Gemini drafts:
 
@@ -71,37 +82,70 @@ Open **Meeting Notes** (`/notes`), paste notes from a meeting or call (or click 
 - **Action items** with owner and due date ("next Friday" is worked out from the meeting date).
 - A **summary** of the meeting.
 
-Every item shows the quote it came from in the notes. Emails or phone numbers that aren't in the notes are removed, and quotes that can't be found are flagged. Edit anything, choose create / update / link / skip per row, then **Confirm and save**: the contacts, opportunities and activities are written in one go (all or nothing) and appear on the lead pages, the Kanban board and the dashboard feed. Nothing is written before you confirm.
+Every item shows the quote from the notes it came from. Emails or phone numbers that aren't in the notes are removed, and quotes that can't be found are flagged. Edit anything, choose create / update / link / skip for each row, then **Confirm and save**. The contacts, opportunities and activities are written in one transaction (all or nothing) and appear on the lead pages, the Kanban board and the dashboard feed. Nothing is written before you confirm.
 
-Extraction runs on `GEMINI_NOTES_MODEL` (`gemini-3.1-flash-lite`, about 3 s, separate quota from Tax Q&A) and falls back to `GEMINI_CHAT_MODEL`. Each extraction is logged to the `meeting_notes` table with what you confirmed. Design: [ARCHITECTURE.md §6](ARCHITECTURE.md#6-meeting-notes-extractor-design-m5).
+Extraction runs on `GEMINI_NOTES_MODEL` (`gemini-3.1-flash-lite`, about 3 s, a separate quota from Tax Q&A) and falls back to `GEMINI_CHAT_MODEL`. Each extraction is logged to the `meeting_notes` table along with what you confirmed. Code: [`lib/notes/`](lib/notes). Design: [ARCHITECTURE.md §6](ARCHITECTURE.md#6-meeting-notes-extractor-design).
 
 ## Evaluation
 
-`npm run eval` runs 13 test questions ([`eval/questions.json`](eval/questions.json): 10 the documents answer, 3 they don't) through the same pipeline as the UI and reports the retrieval hit rate: how often a passage from the expected document, and from the expected pages, is in the top 1, 3, 6 and 10.
+`npm run eval` runs 13 test questions ([`eval/questions.json`](eval/questions.json): 10 the documents answer, each with its expected document and pages, and 3 they don't) through the same code as the UI, and reports the retrieval hit rate @1, 3, 6 and 10.
 
 ```bash
 npm run eval                          # retrieval only: needs embeddings, no answer quota (a few seconds)
-npm run eval -- --answers             # also generates every answer and checks it (13 Gemini calls, ~3 min)
+npm run eval -- --answers             # also generates and checks every answer (13 Gemini calls, ~3 min)
 npm run eval -- --mode hybrid         # experiments: hybrid (vector + full text) or rerank (LLM reorders the top 20)
 npm run eval -- --only q07,q10        # a subset; prints only, doesn't overwrite the results files
+npm run eval:notes                    # Meeting Notes: 4 samples, found / missed / extra items (4 calls)
 ```
 
-Results are written to [`eval/results/`](eval/results); current numbers and what they showed are in [ARCHITECTURE.md §7](ARCHITECTURE.md#7-evaluation). Retrieval: **9/10 right document first, 10/10 in the 10 passages the model reads**. Answers: 10/10 cited the expected document and 3/3 out-of-scope questions were refused.
+Results are in [`eval/results/`](eval/results), and what they showed is in [ARCHITECTURE.md §7](ARCHITECTURE.md#7-evaluation):
 
-**Meeting Notes:** `npm run eval:notes` runs the 4 samples in [`eval/notes.json`](eval/notes.json) through the extractor and reports found / missed / extra items and field accuracy (4 Flash-Lite calls). Latest: all 8 people, 11 action items and 4 opportunities found with every checked field correct, no invented items ([`eval/results/notes.md`](eval/results/notes.md)).
+- **Retrieval:** the expected document ranks first for 9/10 questions and is in the 10 passages the model reads for 10/10.
+- **Answers:** 10/10 cited the expected document; 3/3 out-of-scope questions were refused.
+- **Meeting Notes:** all 8 people, 11 action items and 4 opportunities found, with every checked field correct and no invented items.
 
-**Gemini free-tier limits.** The answer run uses 13 of the 20 daily `gemini-3.5-flash` requests. The limit is per Google Cloud project and model, and resets at midnight Pacific time; a 429 "per day" error means it's used up. To avoid running out during testing, set `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite` (its own quota) in `.env`, or use a key from a project with billing enabled.
+## Gemini free-tier limits
 
-## Database
+Measured during the build (Google doesn't publish them per model):
 
-The schema lives in [`db/schema.sql`](db/schema.sql) and is loaded only when the container starts with an empty volume. After changing it:
+- **`gemini-3.5-flash` (Tax Q&A answers): 5 requests a minute, 20 a day.** It also often returns 503 "high demand". When it's busy or out of quota, the app tries `GEMINI_FALLBACK_MODEL` (`gemini-3.1-flash-lite`, separate quota) once, then tells you when to retry.
+- **Embeddings** have a separate, larger limit (30,000 tokens a minute), so search and `npm run eval` keep working when answers are out of quota.
+- Limits are per Google Cloud project and model, and reset at midnight Pacific time.
 
-```bash
-npm run db:reset            # drops all data and reloads the schema; then npm run seed and npm run ingest again
-```
+For lots of testing, set `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite` (its own quota) in `.env`, or use a key from a project with billing enabled.
 
-`npm run db:psql` opens a psql shell.
+## Troubleshooting
 
-**Database created before M3?** It lacks the `rag_queries` table. Instead of a reset (which would mean re-ingesting), run `npm run db:psql` and paste the `create table if not exists rag_queries …` block from the end of `db/schema.sql`.
+| Symptom | Fix |
+|---|---|
+| "Is Docker running?" on a page | Start Docker, then `npm run db:up` |
+| "No documents are loaded yet" on Tax Q&A | The knowledge base is empty: run it |
+| "free-tier daily limit is used up" / 429 `PerDay` | See [Gemini free-tier limits](#gemini-free-tier-limits) |
+| "Gemini is busy right now" | 503 on both models; retry in a minute |
+| A model returns 404 / "no longer available" | Model names change. `npm run check:gemini` lists what your key can use; set `GEMINI_CHAT_MODEL` etc. in `.env` |
+| Port 5433 already in use | Set `DB_PORT` in `.env` and the same port in `DATABASE_URL` |
 
-**Database created before M5?** It lacks `contacts.role` and the `meeting_notes` table. Run `npm run db:psql` and paste the block under "Meeting Notes (M5)" at the end of `db/schema.sql` (it keeps all data).
+**Database.** The schema is in [`db/schema.sql`](db/schema.sql) and loads when the container starts with an empty volume. `npm run db:psql` opens a psql shell. `npm run db:reset` drops all data and reloads the schema; run `npm run seed` and `npm run ingest` again afterwards.
+
+## Project layout
+
+| Path | What's there |
+|---|---|
+| `app/` | Next.js pages and Server Actions: dashboard, leads, opportunities, `ask` (Tax Q&A), `notes`, `status` |
+| `components/` | UI: `crm/`, `rag/`, `notes/`, and shadcn/ui in `ui/` |
+| `lib/llm.ts` | Every Gemini call: embeddings, `generateJson()` with schema, fallback model, error handling |
+| `lib/rag/` | Document manifest, PDF parsing, chunking, retrieval, the prompt, answering and citation checks |
+| `lib/notes/` | Meeting Notes: extraction schema and prompt, grounding checks, contact matching, confirm transaction |
+| `lib/crm/` | CRM queries (raw SQL) and zod schemas |
+| `scripts/` | `ingest`, `ask`, `eval`, `eval-notes`, `seed`, `check-gemini` |
+| `eval/` | Test questions, meeting-notes samples, results |
+| `db/schema.sql` | All tables and indexes |
+| `public/documents/` | The 9 source PDFs |
+
+## How this was built
+
+Built in under a week with Claude Code, one milestone at a time. Each milestone started with a written plan whose decisions were agreed before any coding:
+
+- [`docs/PLAN.md`](docs/PLAN.md): priorities, how the brief was interpreted, stack, milestones
+- [`docs/milestones/`](docs/milestones): the plan for each milestone (M0–M6), with every decision and its alternatives, and notes on what changed during the build
+- [`docs/ai-usage-log.md`](docs/ai-usage-log.md): the running log behind [AI_USAGE.md](AI_USAGE.md)
