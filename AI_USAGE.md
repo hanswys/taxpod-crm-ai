@@ -7,7 +7,7 @@ How I used AI tools to build this project: which tools, how I worked with them, 
 | Tool | Used for |
 |---|---|
 | **Claude Code** (Claude Opus 5.5) | Nearly everything: planning each milestone, writing the code, running and checking it (scripts, the eval, a headless browser for UI checks), and drafting the docs. |
-| **Conductor** (Mac app for running Claude Code sessions) | Gives each session its own git worktree, so each milestone had its own workspace, branch and pull request, and I could review each diff before merging. A shared memory file carried setup notes between workspaces (e.g. reusing an already-ingested database instead of spending 7 minutes of embedding quota). |
+| **Conductor** (Mac app for running Claude Code sessions) | Gives each session its own git worktree, so each milestone had its own workspace, branch and pull request, and I could review each diff before merging. Claude Code's project memory carried setup notes from one workspace to the next (e.g. copying an already-ingested database instead of spending 7 minutes of embedding quota). |
 | **Google AI Studio** | The free Gemini API key, and checking which models the key could use. Gemini itself is part of the product (embeddings, answers, extraction), not a development tool. |
 
 ## 2. How I worked with it
