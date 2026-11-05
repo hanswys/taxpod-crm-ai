@@ -1,0 +1,78 @@
+[
+  {
+    "id": "q01",
+    "question": "Who doesn't have to issue e-Invoices?",
+    "expected": [{ "slug": "einvoice-guideline", "pages": [15, 17] }],
+    "note": "Rep wording. M2/M3 asked 'Who is exempt from issuing e-Invoices?'"
+  },
+  {
+    "id": "q02",
+    "question": "My client sells to individual consumers who don't ask for an e-Invoice. What do they have to do?",
+    "expected": [{ "slug": "einvoice-specific-guideline", "pages": [18, 32] }],
+    "note": "Rep wording. Answer is the consolidated e-Invoice (3.6), inside a 29-chunk section."
+  },
+  {
+    "id": "q03",
+    "question": "What is the tax rate for an SME company?",
+    "expected": [{ "slug": "pr-8-2025", "pages": [19, 20] }],
+    "note": "Rates are in a table that pdf.js flattens (Table 5, 6.2.2)."
+  },
+  {
+    "id": "q04",
+    "question": "Can I claim tax relief for my child's education fees?",
+    "expected": [{ "slug": "pr-7-2025", "pages": [53, 57] }],
+    "note": "Child relief for higher education (6.19). Largest section in the knowledge base (63 chunks)."
+  },
+  {
+    "id": "q05",
+    "question": "If an employer pays the employee's income tax, is that taxable to the employee?",
+    "expected": [{ "slug": "pr-3-2024", "pages": [6, 6] }]
+  },
+  {
+    "id": "q06",
+    "question": "My client bought a laptop on hire purchase. Can they claim the small value asset allowance?",
+    "expected": [{ "slug": "pr-4-2026", "pages": [13, 13] }],
+    "note": "Only PR 4/2026 covers hire purchase (13, and step 1 on p. 8). Changed from the draft: the RM2,000 limit is also in PR 8/2025 6.3."
+  },
+  {
+    "id": "q07",
+    "question": "Is service tax charged on legal services?",
+    "expected": [{ "slug": "sst-professional-services", "pages": [5, 6] }],
+    "note": "'Legal Services' ranked 2nd behind a registration chunk in M2 and M3."
+  },
+  {
+    "id": "q08",
+    "question": "Do intra-group management fees attract service tax?",
+    "expected": [{ "slug": "sst-management-services", "pages": [10, 15] }],
+    "note": "Rep wording. The guide calls it 'group relief'."
+  },
+  {
+    "id": "q09",
+    "question": "When does a foreign digital service provider have to register for service tax?",
+    "expected": [{ "slug": "sst-digital-services-fsp", "pages": [15, 18] }]
+  },
+  {
+    "id": "q10",
+    "question": "What is the current service tax rate on legal services?",
+    "expected": [{ "slug": "sst-management-services", "pages": [5, 5] }],
+    "note": "Conflicting sources: the 2021 Professional Services guide says 6%; only the 2026 Management Services guide (p. 5) has today's 8% (from 1 March 2024), so only it counts."
+  },
+  {
+    "id": "n01",
+    "question": "What is the capital of France?",
+    "expected": [],
+    "note": "Off-topic. Should stop at the similarity floor."
+  },
+  {
+    "id": "n02",
+    "question": "What is the corporate income tax rate in Singapore?",
+    "expected": [],
+    "note": "Near-domain (another country). Passes the floor in M3; the model must refuse."
+  },
+  {
+    "id": "n03",
+    "question": "What is the real property gains tax rate when selling a house after 5 years?",
+    "expected": [],
+    "note": "Malaysian tax, but no document in the knowledge base covers RPGT."
+  }
+]
