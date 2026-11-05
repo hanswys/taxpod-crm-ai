@@ -3,27 +3,27 @@
 import { sql } from "@/lib/db";
 import type { ActivityType, ContactStatus, Stage } from "@/lib/crm/types";
 
-type SeedContact = { key: string; name: string; email: string; phone: string; company: string; status: ContactStatus };
+type SeedContact = { key: string; name: string; email: string; phone: string; company: string; role: string; status: ContactStatus };
 type SeedOpportunity = { key: string; contact: string; title: string; value_rm: number; stage: Stage };
 // daysAgo / hour (Malaysia time) keep the feed looking recent whenever the seed runs.
 type SeedActivity = { contact: string; opportunity?: string; type: ActivityType; daysAgo: number; hour: number; description: string };
 
 const contacts: SeedContact[] = [
-  { key: "aisyah", name: "Nur Aisyah Rahman", email: "aisyah@serimutiara.com.my", phone: "+60 12-345 6789", company: "Kedai Runcit Seri Mutiara Sdn Bhd", status: "customer" },
-  { key: "jason", name: "Jason Lim Wei Jie", email: "jason.lim@limpartners.my", phone: "+60 16-221 8840", company: "Lim & Partners Chartered Accountants", status: "customer" },
-  { key: "priya", name: "Priya Nair", email: "priya@kinetaxadvisory.com", phone: "+60 17-882 1023", company: "Kineta Tax Advisory", status: "prospect" },
-  { key: "hafiz", name: "Muhammad Hafiz Ismail", email: "hafiz@borneotimber.com.my", phone: "+60 19-554 2101", company: "Borneo Timber Exports Sdn Bhd", status: "prospect" },
-  { key: "mei", name: "Tan Mei Ling", email: "meiling.tan@klfoodhall.my", phone: "+60 12-908 7765", company: "KL Food Hall Group", status: "lead" },
-  { key: "ravi", name: "Ravi Chandran", email: "ravi@penangmfg.com", phone: "+60 4-262 1188", company: "Penang Precision Manufacturing", status: "prospect" },
-  { key: "siti", name: "Siti Nurhaliza Abdullah", email: "siti.a@majuedu.edu.my", phone: "+60 13-410 2290", company: "Maju Education Centre", status: "lead" },
-  { key: "kenneth", name: "Kenneth Wong", email: "kenneth@wongtradinghq.com", phone: "+60 11-2345 6677", company: "Wong Trading Co.", status: "customer" },
-  { key: "farah", name: "Farah Diyana Yusof", email: "farah@greenleafhotels.my", phone: "+60 14-776 3321", company: "Greenleaf Hotels Malaysia", status: "lead" },
-  { key: "arjun", name: "Arjun Singh Gill", email: "arjun@gilllogistics.com.my", phone: "+60 12-660 4410", company: "Gill Logistics Sdn Bhd", status: "prospect" },
-  { key: "chloe", name: "Chloe Ng", email: "chloe.ng@ngauditpractice.my", phone: "+60 16-330 9087", company: "Ng Audit Practice", status: "lead" },
-  { key: "azman", name: "Azman Hashim", email: "azman@tiarasteel.com.my", phone: "+60 3-7781 2200", company: "Tiara Steel Industries Bhd", status: "customer" },
-  { key: "grace", name: "Grace Tan", email: "grace@bloombakery.my", phone: "+60 17-212 5566", company: "Bloom Bakery Sdn Bhd", status: "lead" },
-  { key: "daniel", name: "Daniel Ho", email: "daniel.ho@hoco-secretarial.com", phone: "+60 18-990 1122", company: "HoCo Secretarial Services", status: "prospect" },
-  { key: "zul", name: "Zulkifli Omar", email: "zul@omarcontractors.my", phone: "+60 19-871 4433", company: "Omar Contractors Sdn Bhd", status: "lead" },
+  { key: "aisyah", name: "Nur Aisyah Rahman", email: "aisyah@serimutiara.com.my", phone: "+60 12-345 6789", company: "Kedai Runcit Seri Mutiara Sdn Bhd", role: "Finance Manager", status: "customer" },
+  { key: "jason", name: "Jason Lim Wei Jie", email: "jason.lim@limpartners.my", phone: "+60 16-221 8840", company: "Lim & Partners Chartered Accountants", role: "Managing Partner", status: "customer" },
+  { key: "priya", name: "Priya Nair", email: "priya@kinetaxadvisory.com", phone: "+60 17-882 1023", company: "Kineta Tax Advisory", role: "Founder", status: "prospect" },
+  { key: "hafiz", name: "Muhammad Hafiz Ismail", email: "hafiz@borneotimber.com.my", phone: "+60 19-554 2101", company: "Borneo Timber Exports Sdn Bhd", role: "CFO", status: "prospect" },
+  { key: "mei", name: "Tan Mei Ling", email: "meiling.tan@klfoodhall.my", phone: "+60 12-908 7765", company: "KL Food Hall Group", role: "Operations Director", status: "lead" },
+  { key: "ravi", name: "Ravi Chandran", email: "ravi@penangmfg.com", phone: "+60 4-262 1188", company: "Penang Precision Manufacturing", role: "Head of Tax", status: "prospect" },
+  { key: "siti", name: "Siti Nurhaliza Abdullah", email: "siti.a@majuedu.edu.my", phone: "+60 13-410 2290", company: "Maju Education Centre", role: "Principal", status: "lead" },
+  { key: "kenneth", name: "Kenneth Wong", email: "kenneth@wongtradinghq.com", phone: "+60 11-2345 6677", company: "Wong Trading Co.", role: "Owner", status: "customer" },
+  { key: "farah", name: "Farah Diyana Yusof", email: "farah@greenleafhotels.my", phone: "+60 14-776 3321", company: "Greenleaf Hotels Malaysia", role: "Group Financial Controller", status: "lead" },
+  { key: "arjun", name: "Arjun Singh Gill", email: "arjun@gilllogistics.com.my", phone: "+60 12-660 4410", company: "Gill Logistics Sdn Bhd", role: "Finance Director", status: "prospect" },
+  { key: "chloe", name: "Chloe Ng", email: "chloe.ng@ngauditpractice.my", phone: "+60 16-330 9087", company: "Ng Audit Practice", role: "Audit Partner", status: "lead" },
+  { key: "azman", name: "Azman Hashim", email: "azman@tiarasteel.com.my", phone: "+60 3-7781 2200", company: "Tiara Steel Industries Bhd", role: "CFO", status: "customer" },
+  { key: "grace", name: "Grace Tan", email: "grace@bloombakery.my", phone: "+60 17-212 5566", company: "Bloom Bakery Sdn Bhd", role: "Owner", status: "lead" },
+  { key: "daniel", name: "Daniel Ho", email: "daniel.ho@hoco-secretarial.com", phone: "+60 18-990 1122", company: "HoCo Secretarial Services", role: "Director", status: "prospect" },
+  { key: "zul", name: "Zulkifli Omar", email: "zul@omarcontractors.my", phone: "+60 19-871 4433", company: "Omar Contractors Sdn Bhd", role: "Managing Director", status: "lead" },
 ];
 
 const opportunities: SeedOpportunity[] = [
@@ -92,7 +92,7 @@ async function main() {
     const contactIds = new Map<string, number>();
     for (const c of contacts) {
       const [{ id }] = await tx<{ id: number }[]>`
-        insert into contacts ${tx(c, "name", "email", "phone", "company", "status")} returning id
+        insert into contacts ${tx(c, "name", "email", "phone", "company", "role", "status")} returning id
       `;
       contactIds.set(c.key, id);
     }

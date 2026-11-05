@@ -38,6 +38,7 @@ export type Contact = {
   email: string | null;
   phone: string | null;
   company: string | null;
+  role: string | null;
   status: ContactStatus;
   created_at: Date;
   updated_at: Date;

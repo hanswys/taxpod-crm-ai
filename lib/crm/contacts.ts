@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db";
+import { sql, type Db } from "@/lib/db";
 import type { ContactInput } from "@/lib/crm/schemas";
 import type { Contact, ContactStatus } from "@/lib/crm/types";
 
@@ -28,23 +28,23 @@ export async function listContactOptions(): Promise<Pick<Contact, "id" | "name" 
   return sql`select id, name, company from contacts order by name`;
 }
 
-export async function getContact(id: number): Promise<Contact | null> {
-  const [contact] = await sql<Contact[]>`select * from contacts where id = ${id}`;
+export async function getContact(id: number, db: Db = sql): Promise<Contact | null> {
+  const [contact] = await db<Contact[]>`select * from contacts where id = ${id}`;
   return contact ?? null;
 }
 
-export async function createContact(input: ContactInput): Promise<Contact> {
-  const [contact] = await sql<Contact[]>`
-    insert into contacts ${sql(input, "name", "email", "phone", "company", "status")}
+export async function createContact(input: ContactInput, db: Db = sql): Promise<Contact> {
+  const [contact] = await db<Contact[]>`
+    insert into contacts ${db(input, "name", "email", "phone", "company", "role", "status")}
     returning *
   `;
   return contact;
 }
 
-export async function updateContact(id: number, input: ContactInput): Promise<Contact | null> {
-  const [contact] = await sql<Contact[]>`
+export async function updateContact(id: number, input: ContactInput, db: Db = sql): Promise<Contact | null> {
+  const [contact] = await db<Contact[]>`
     update contacts
-    set ${sql(input, "name", "email", "phone", "company", "status")}, updated_at = now()
+    set ${db(input, "name", "email", "phone", "company", "role", "status")}, updated_at = now()
     where id = ${id}
     returning *
   `;

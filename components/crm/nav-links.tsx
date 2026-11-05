@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/leads", label: "Leads" },
   { href: "/opportunities", label: "Opportunities" },
   { href: "/ask", label: "Tax Q&A" },
+  { href: "/notes", label: "Meeting Notes" },
 ];
 
 /** Highlights the current section. usePathname() is runtime data, so render inside <Suspense>. */

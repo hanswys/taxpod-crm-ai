@@ -1,6 +1,6 @@
 # taxPOD CRM + AI
 
-A lightweight CRM (Leads, Opportunities, Dashboard, Activity Log) with a RAG Q&A module over Malaysian tax documents. Design: [ARCHITECTURE.md](ARCHITECTURE.md).
+A lightweight CRM (Leads, Opportunities, Dashboard, Activity Log) with a RAG Q&A module over Malaysian tax documents, and a Meeting Notes Extractor that turns pasted notes into reviewed CRM records. Design: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 > Work in progress. Full instructions (ingestion, RAG, Meeting Notes) are added as features land.
 
@@ -62,6 +62,19 @@ npm run ask -- "Who is exempt from issuing e-Invoices?" --type sst   # filter: e
 
 Every question is logged to the `rag_queries` table (retrieved chunks, scores, outcome, model, latency). The free Gemini tier allows **5 answers a minute and 20 a day** on `gemini-3.5-flash`, and often returns "high demand" errors. When the chat model is busy, rate-limited or out of quota, the app tries `GEMINI_FALLBACK_MODEL` (`gemini-3.1-flash-lite`, separate quota) once, then tells you when to retry. Design: [ARCHITECTURE.md §5.5–5.8](ARCHITECTURE.md#55-retrieval-librag-retrievets).
 
+## Meeting Notes (add-on)
+
+Open **Meeting Notes** (`/notes`), paste notes from a meeting or call (or click one of the samples), set the meeting date and time, and click **Extract**. Gemini drafts:
+
+- **People**, each matched to an existing contact by email, or suggested by name and company, or offered as a new lead. taxPOD staff are recognised and not added as contacts.
+- **Opportunities**: create a new one, or link to the contact's open deal and optionally move its stage.
+- **Action items** with owner and due date ("next Friday" is worked out from the meeting date).
+- A **summary** of the meeting.
+
+Every item shows the quote it came from in the notes. Emails or phone numbers that aren't in the notes are removed, and quotes that can't be found are flagged. Edit anything, choose create / update / link / skip per row, then **Confirm and save**: the contacts, opportunities and activities are written in one go (all or nothing) and appear on the lead pages, the Kanban board and the dashboard feed. Nothing is written before you confirm.
+
+Extraction runs on `GEMINI_NOTES_MODEL` (`gemini-3.1-flash-lite`, about 3 s, separate quota from Tax Q&A) and falls back to `GEMINI_CHAT_MODEL`. Each extraction is logged to the `meeting_notes` table with what you confirmed. Design: [ARCHITECTURE.md §6](ARCHITECTURE.md#6-meeting-notes-extractor-design-m5).
+
 ## Evaluation
 
 `npm run eval` runs 13 test questions ([`eval/questions.json`](eval/questions.json): 10 the documents answer, 3 they don't) through the same pipeline as the UI and reports the retrieval hit rate: how often a passage from the expected document, and from the expected pages, is in the top 1, 3, 6 and 10.
@@ -74,6 +87,8 @@ npm run eval -- --only q07,q10        # a subset; prints only, doesn't overwrite
 ```
 
 Results are written to [`eval/results/`](eval/results); current numbers and what they showed are in [ARCHITECTURE.md §7](ARCHITECTURE.md#7-evaluation). Retrieval: **9/10 right document first, 10/10 in the 10 passages the model reads**. Answers: 10/10 cited the expected document and 3/3 out-of-scope questions were refused.
+
+**Meeting Notes:** `npm run eval:notes` runs the 4 samples in [`eval/notes.json`](eval/notes.json) through the extractor and reports found / missed / extra items and field accuracy (4 Flash-Lite calls). Latest: all 8 people, 11 action items and 4 opportunities found with every checked field correct, no invented items ([`eval/results/notes.md`](eval/results/notes.md)).
 
 **Gemini free-tier limits.** The answer run uses 13 of the 20 daily `gemini-3.5-flash` requests. The limit is per Google Cloud project and model, and resets at midnight Pacific time; a 429 "per day" error means it's used up. To avoid running out during testing, set `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite` (its own quota) in `.env`, or use a key from a project with billing enabled.
 
@@ -88,3 +103,5 @@ npm run db:reset            # drops all data and reloads the schema; then npm ru
 `npm run db:psql` opens a psql shell.
 
 **Database created before M3?** It lacks the `rag_queries` table. Instead of a reset (which would mean re-ingesting), run `npm run db:psql` and paste the `create table if not exists rag_queries …` block from the end of `db/schema.sql`.
+
+**Database created before M5?** It lacks `contacts.role` and the `meeting_notes` table. Run `npm run db:psql` and paste the block under "Meeting Notes (M5)" at the end of `db/schema.sql` (it keeps all data).

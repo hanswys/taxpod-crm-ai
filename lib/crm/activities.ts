@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db";
+import { sql, type Db } from "@/lib/db";
 import type { ActivityInput } from "@/lib/crm/schemas";
 import type { Activity } from "@/lib/crm/types";
 
@@ -31,8 +31,8 @@ export async function listRecentActivities(limit = 10): Promise<Activity[]> {
  * Activities logged against an opportunity also store its contact, so they show on the
  * contact's timeline too.
  */
-export async function createActivity(input: ActivityInput): Promise<{ id: number }> {
-  const [row] = await sql<{ id: number }[]>`
+export async function createActivity(input: ActivityInput, db: Db = sql): Promise<{ id: number }> {
+  const [row] = await db<{ id: number }[]>`
     insert into activities (contact_id, opportunity_id, type, occurred_at, description)
     select
       coalesce(${input.contact_id}::bigint, (select contact_id from opportunities where id = ${input.opportunity_id}::bigint)),

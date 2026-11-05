@@ -68,9 +68,14 @@ function ContactForm({ contact, onSaved }: { contact?: Contact; onSaved: () => v
           <Input {...fieldProps("phone", errors.phone)} type="tel" defaultValue={value("phone")} />
         </Field>
       </div>
-      <Field name="company" label="Company" errors={errors.company}>
-        <Input {...fieldProps("company", errors.company)} defaultValue={value("company")} />
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field name="company" label="Company" errors={errors.company}>
+          <Input {...fieldProps("company", errors.company)} defaultValue={value("company")} />
+        </Field>
+        <Field name="role" label="Role" errors={errors.role}>
+          <Input {...fieldProps("role", errors.role)} defaultValue={value("role")} placeholder="e.g. Finance Manager" />
+        </Field>
+      </div>
       <Field name="status" label="Status" errors={errors.status}>
         <NativeSelect {...fieldProps("status", errors.status)} defaultValue={value("status") || "lead"} className="w-full">
           {CONTACT_STATUSES.map((s) => (

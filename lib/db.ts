@@ -18,6 +18,12 @@ export const sql = globalForDb.sql ?? connect();
 
 if (process.env.NODE_ENV !== "production") globalForDb.sql = sql;
 
+/**
+ * The pool or a transaction from sql.begin(). Query functions take an optional `db = sql`,
+ * so the Meeting Notes confirm (M5) can run several of them in one transaction.
+ */
+export type Db = postgres.ISql<typeof sql extends postgres.Sql<infer T> ? T : never>;
+
 /** Postgres error code, e.g. "23505" (unique violation) or "23503" (foreign key violation). */
 export function pgErrorCode(error: unknown): string | undefined {
   return error instanceof postgres.PostgresError ? error.code : undefined;
