@@ -4,12 +4,13 @@ import { z } from "zod";
 import { pgErrorCode, sql } from "@/lib/db";
 import { classifyLlmError, generateJson, LlmError } from "@/lib/llm";
 import { answerSchema, buildPrompt, SYSTEM_INSTRUCTION } from "@/lib/rag/prompt";
-import { retrieve, TOP_K, type Passage } from "@/lib/rag/retrieve";
+import { retrieve, TOP_K, type Passage, type RetrievalMode } from "@/lib/rag/retrieve";
 import type { DocType } from "@/lib/rag/sources";
 
 // Below this, even the best passage is off-topic: say so without calling the LLM.
-// M2: in-scope top hits 0.70–0.76, "capital of France" 0.50, "Singapore corporate
-// tax rate" 0.60. Near-domain questions pass the floor; the prompt handles those. Tuned in M4.
+// M4 eval: answerable questions score 0.705–0.761; "capital of France" 0.504; near-domain
+// questions (Singapore tax 0.603, Malaysian RPGT 0.601) are only ~0.10 below real ones, so a
+// higher floor would risk refusing oddly worded real questions. Those pass; the prompt refuses them.
 export const SIMILARITY_FLOOR = 0.55;
 
 const DOC_TYPES = ["public_ruling", "e_invoice", "sst"] as const satisfies readonly DocType[];
@@ -45,7 +46,10 @@ export type AskResult =
 
 const NOT_FOUND_MESSAGE = "The documents in the knowledge base don't cover this question.";
 
-export async function ask(input: AskInput, { k = TOP_K }: { k?: number } = {}): Promise<AskResult> {
+export async function ask(
+  input: AskInput,
+  { k = TOP_K, mode }: { k?: number; mode?: RetrievalMode } = {},
+): Promise<AskResult> {
   const parsed = askInput.safeParse(input);
   if (!parsed.success) {
     return { kind: "error", message: parsed.error.issues[0].message, retryable: false };
@@ -56,7 +60,7 @@ export async function ask(input: AskInput, { k = TOP_K }: { k?: number } = {}): 
   let passages: Passage[] = [];
 
   try {
-    ({ passages } = await retrieve(question, { k, docType }));
+    ({ passages } = await retrieve(question, { k, docType, mode }));
     if (passages.length === 0) {
       const result: AskResult = {
         kind: "error",
@@ -67,8 +71,9 @@ export async function ask(input: AskInput, { k = TOP_K }: { k?: number } = {}): 
       return result;
     }
 
-    // Guard 1: nothing relevant was found, so don't ask the LLM.
-    if (passages[0].similarity < SIMILARITY_FLOOR) {
+    // Guard 1: nothing relevant was found, so don't ask the LLM. (Hybrid and rerank
+    // don't keep the best cosine score first, so take the maximum.)
+    if (Math.max(...passages.map((p) => p.similarity)) < SIMILARITY_FLOOR) {
       const result: AskResult = {
         kind: "not_found",
         reason: "low_similarity",

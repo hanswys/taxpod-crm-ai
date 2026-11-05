@@ -51,7 +51,7 @@ A full ingest embeds ~500 chunks and takes about 6 minutes on a free Gemini key,
 
 ## Tax Q&A (RAG)
 
-Open **Tax Q&A** (`/ask`) and type a question, e.g. "Who is exempt from issuing e-Invoices?". Optionally limit the search to e-Invoice, Public Ruling or SST documents. The answer is written only from the passages found in the documents, with a numbered citation after each statement; click a citation to open the PDF on that page. "Show retrieved passages" lists everything that was sent to the model, with similarity scores. If the documents don't cover the question (try "What is the corporate income tax rate in Singapore?"), it says so instead of answering.
+Open **Tax Q&A** (`/ask`) and type a question, e.g. "Who is exempt from issuing e-Invoices?". Optionally limit the search to e-Invoice, Public Ruling or SST documents. The answer is written only from the passages found in the documents, with a numbered citation after each statement; click a citation to open the PDF on that page. "Show retrieved passages" lists the 10 passages sent to the model, with similarity scores. If the documents don't cover the question (try "What is the corporate income tax rate in Singapore?"), it says so instead of answering.
 
 The same pipeline runs from the terminal:
 
@@ -61,6 +61,21 @@ npm run ask -- "Who is exempt from issuing e-Invoices?" --type sst   # filter: e
 ```
 
 Every question is logged to the `rag_queries` table (retrieved chunks, scores, outcome, model, latency). The free Gemini tier allows **5 answers a minute and 20 a day** on `gemini-3.5-flash`, and often returns "high demand" errors. When the chat model is busy, rate-limited or out of quota, the app tries `GEMINI_FALLBACK_MODEL` (`gemini-3.1-flash-lite`, separate quota) once, then tells you when to retry. Design: [ARCHITECTURE.md §5.5–5.8](ARCHITECTURE.md#55-retrieval-librag-retrievets).
+
+## Evaluation
+
+`npm run eval` runs 13 test questions ([`eval/questions.json`](eval/questions.json): 10 the documents answer, 3 they don't) through the same pipeline as the UI and reports the retrieval hit rate: how often a passage from the expected document, and from the expected pages, is in the top 1, 3, 6 and 10.
+
+```bash
+npm run eval                          # retrieval only: needs embeddings, no answer quota (a few seconds)
+npm run eval -- --answers             # also generates every answer and checks it (13 Gemini calls, ~3 min)
+npm run eval -- --mode hybrid         # experiments: hybrid (vector + full text) or rerank (LLM reorders the top 20)
+npm run eval -- --only q07,q10        # a subset; prints only, doesn't overwrite the results files
+```
+
+Results are written to [`eval/results/`](eval/results); current numbers and what they showed are in [ARCHITECTURE.md §7](ARCHITECTURE.md#7-evaluation). Retrieval: **9/10 right document first, 10/10 in the 10 passages the model reads**. Answers: 10/10 cited the expected document and 3/3 out-of-scope questions were refused.
+
+**Gemini free-tier limits.** The answer run uses 13 of the 20 daily `gemini-3.5-flash` requests. The limit is per Google Cloud project and model, and resets at midnight Pacific time; a 429 "per day" error means it's used up. To avoid running out during testing, set `GEMINI_CHAT_MODEL=gemini-3.5-flash-lite` (its own quota) in `.env`, or use a key from a project with billing enabled.
 
 ## Database
 

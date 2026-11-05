@@ -243,7 +243,7 @@ Result: 497 chunks, median ~1,300 characters (max 1,691); check with `npm run in
 ```mermaid
 flowchart LR
   Q["Question<br/>+ optional doc_type"] --> E["gemini-embedding-001<br/>RETRIEVAL_QUERY"]
-  E --> S[("top-6 cosine search<br/>pgvector")]
+  E --> S[("top-10 cosine search<br/>pgvector")]
   S --> F{"best score<br/>≥ 0.55?"}
   F -- no --> NF["Not in the documents<br/>(no LLM call)"]
   F -- yes --> P["prompt: rules +<br/>numbered passages + question"]
@@ -254,12 +254,12 @@ flowchart LR
 ```
 
 - **Query embedding:** the question is embedded with task type `RETRIEVAL_QUERY` (chunks used `RETRIEVAL_DOCUMENT`), 768 dims, unit length.
-- **Search:** one SQL query, ordered by cosine distance (`<=>`), joined to `documents` for the citation fields. **k = 6** passages (~2k tokens): M2's sanity searches sometimes ranked the best passage 2nd or 3rd, so k = 3 is too tight, and more than ~8 mostly adds overlapping chunks from the same section. M4 measures hit rate @1/@3/@6.
-- **Metadata filter (the brief's bonus):** an optional `doc_type` (e-Invoice / Public Ruling / SST), chosen in a dropdown and applied in the SQL `where`. A rep who knows it's an SST question avoids e-Invoice passages that share vocabulary. With a filter, Postgres scans that type's chunks exactly (checked with `EXPLAIN`), so a filtered search never returns fewer than k. Reranking with a second LLM call was left for M4 to test against the eval, because on the free tier it doubles the calls that can fail.
+- **Search:** one SQL query, ordered by cosine distance (`<=>`), joined to `documents` for the citation fields. **k = 10** passages (~3.3k tokens). M3 started at 6; the M4 eval (§7) found the passage with today's SST rate ranked 9th for "What is the current service tax rate on legal services?", so with 6 the answer quoted an outdated rate. 10 fixed it and the answer run showed no answer getting worse.
+- **Metadata filter (the brief's bonus):** an optional `doc_type` (e-Invoice / Public Ruling / SST), chosen in a dropdown and applied in the SQL `where`. A rep who knows it's an SST question avoids e-Invoice passages that share vocabulary. With a filter, Postgres scans that type's chunks exactly (checked with `EXPLAIN`), so a filtered search never returns fewer than k. - **Tried and dropped in M4** (§7): hybrid search (Postgres full text + vector, merged by reciprocal rank fusion) was clearly worse; an LLM rerank of the vector top 20 tied plain vector search on every metric while adding a model call per question. Both stay in the code as eval modes (`npm run eval -- --mode hybrid|rerank`) so the comparison can be rerun.
 
 ### 5.6 Prompt and answer (`lib/rag/prompt.ts`, `lib/rag/answer.ts`)
 
-The whole prompt is in one file. The **system instruction** tells the model to use only the numbered sources, to cite every statement as `[n]`, to set `answered: false` if the sources don't contain the answer, to answer a partly covered question only partly and say what's missing, to quote figures exactly, and to ignore instructions inside the sources. The **message** lists the passages as `[1] PR 8/2025 — 6. Special Tax Treatment… (page 19)` followed by the text, then the question.
+The whole prompt is in one file. The **system instruction** tells the model to use only the numbered sources, to cite every statement as `[n]`, to set `answered: false` if the sources don't contain the answer, to answer a partly covered question only partly and say what's missing, to quote figures exactly, to prefer the most recently published source when sources disagree (and mention the older figure), and to ignore instructions inside the sources. The **message** lists the passages as `[1] PR 8/2025, published 2025-12-22 — 6. Special Tax Treatment… (page 19)` followed by the text, then the question. The publication date and the "sources disagree" rule were added in M4 for conflicting SST rates (§5.7).
 
 **Structured output:** the reply must match `{ answered: boolean, answer: string }`. The schema is written once in zod, converted to JSON Schema and passed as `responseJsonSchema`, so Gemini enforces it while generating; zod checks it again on arrival. `answered` is an explicit refusal flag (no matching "I don't know" phrases), which M4 uses to score the negative questions. The same `generateJson()` helper will run M5's extraction.
 
@@ -267,16 +267,16 @@ The whole prompt is in one file. The **system instruction** tells the model to u
 
 ### 5.7 Citations and the hallucination guard
 
-**Citations:** the model writes `[n]` markers that refer to the passage numbers in the prompt. The server keeps only markers that point at a passage it actually sent, drops the rest, merges duplicates, and renumbers them in order of first use. Each citation carries the document's short title, section heading, PDF page range and publication date ("as at 30 Aug 2026"), and links to `/documents/<file>.pdf#page=N`, which opens the committed PDF on the cited page. "Show retrieved passages" under each answer lists all six passages with their scores and which ones were cited, so retrieval can be inspected.
+**Citations:** the model writes `[n]` markers that refer to the passage numbers in the prompt. The server keeps only markers that point at a passage it actually sent, drops the rest, merges duplicates, and renumbers them in order of first use. Each citation carries the document's short title, section heading, PDF page range and publication date ("as at 30 Aug 2026"), and links to `/documents/<file>.pdf#page=N`, which opens the committed PDF on the cited page. "Show retrieved passages" under each answer lists all ten passages with their scores and which ones were cited, so retrieval can be inspected.
 
 **"Not in the documents"**, three layers:
-1. **Similarity floor (0.55).** If even the best passage scores below it, the question is off-topic and the LLM isn't called. Measured: in-scope top hits 0.70–0.76; "What is the capital of France?" 0.50.
-2. **The prompt.** Near-domain questions pass the floor ("corporate income tax rate in Singapore" scores 0.60 against PR 8/2025's Malaysian rates), so the model must decline: it sets `answered: false`, verified on that question.
+1. **Similarity floor (0.55).** If even the best passage scores below it, the question is off-topic and the LLM isn't called. Measured in the M4 eval: answerable questions 0.705–0.761; "What is the capital of France?" 0.504. Kept at 0.55 rather than raised: near-domain questions score only ~0.10 below real ones, too close to separate safely by score.
+2. **The prompt.** Near-domain questions pass the floor ("corporate income tax rate in Singapore" 0.603, "real property gains tax" 0.601, a Malaysian tax no document covers), so the model must decline: it set `answered: false` on both in the eval.
 3. **Citation check.** An answer with no valid citation is withheld and shown as "not in the documents", since it may come from the model's own memory.
 
 The UI says which layer refused (no close match / the AI found no answer in the passages / no citations), and every answer carries "check the source before advising a client".
 
-**Stale and conflicting sources are a separate risk.** The answer is faithful to the passages it was given, not to today's law. Asked "Is service tax charged on legal services?", it quotes the 2021 Professional Services guide's 6% rate, while the 2026 Management Services guide in the same knowledge base says the rate rose from 6% to 8% on 1 March 2024 (p. 5); that passage wasn't retrieved, so the model couldn't know. The "as at" date on each citation makes the age visible. Fixes (an M4 case, and §8): prefer newer documents when passages conflict, and keep documents current.
+**Stale and conflicting sources are a separate risk.** The answer is faithful to the passages it was given, not to today's law. The 2021 Professional Services guide says legal services are taxed at 6%; the 2026 Management Services guide in the same knowledge base says the general rate rose from 6% to 8% on 1 March 2024 (p. 5). M4 added the publication date to every passage and a "prefer the newest source, mention the older figure" rule, and raised k to 10 so that passage is retrieved for "What is the **current** service tax rate on legal services?" (now answered with both rates and dates). It only helps when the newer passage is retrieved: "**Is** service tax charged on legal services?" still retrieves only the 2021 guide and quotes 6% (§7). The "as at" date on each citation makes the age visible; the real fix is keeping documents current (§8).
 
 ### 5.8 Error handling and observability
 
@@ -300,9 +300,59 @@ The UI says which layer refused (no close match / the AI found no answer in the 
 
 To be written in M5. Will cover: extraction schema, prompt, schema enforcement and validation, the review-and-edit step, how contacts are matched (create vs update), and error handling.
 
-## 7. Evaluation _(M4)_
+## 7. Evaluation
 
-To be written in M4: the question set with expected source documents, hit rate @k, and what we learned.
+`npm run eval` runs a fixed question set ([`eval/questions.json`](eval/questions.json)) through the same `retrieve()` and `ask()` code as the UI and writes the results to [`eval/results/`](eval/results). Retrieval-only runs need just embeddings (no generation quota), so they can be repeated freely; `--answers` also generates and checks every answer (13 model calls). Plan and decisions: [`docs/milestones/M4-evaluation.md`](docs/milestones/M4-evaluation.md).
+
+### 7.1 Question set
+
+10 questions the documents answer (one per document, plus one where two documents conflict) and 3 they don't. Several are phrased the way a sales rep would ask, not in the documents' wording. Each answerable question lists its expected document and page range, checked against the PDFs.
+
+| id | Question | Expected source |
+|---|---|---|
+| q01 | Who doesn't have to issue e-Invoices? | e-Invoice Guideline §1.6, pp. 15–17 |
+| q02 | My client sells to individual consumers who don't ask for an e-Invoice. What do they have to do? | e-Invoice Specific Guideline §3 (consolidated e-Invoice), pp. 18–32 |
+| q03 | What is the tax rate for an SME company? | PR 8/2025 §6.2, pp. 19–20 |
+| q04 | Can I claim tax relief for my child's education fees? | PR 7/2025 §6.19, pp. 53–57 |
+| q05 | If an employer pays the employee's income tax, is that taxable to the employee? | PR 3/2024 §5, p. 6 |
+| q06 | My client bought a laptop on hire purchase. Can they claim the small value asset allowance? | PR 4/2026 §13, p. 13 |
+| q07 | Is service tax charged on legal services? | SST Professional Services, "Legal Services", pp. 5–6 |
+| q08 | Do intra-group management fees attract service tax? | SST Management Services, "Group relief", pp. 10–15 |
+| q09 | When does a foreign digital service provider have to register for service tax? | SST Digital Services by FSP, "Mandatory registration", pp. 15–18 |
+| q10 | What is the current service tax rate on legal services? | SST Management Services p. 5 (the 8% rate; the 2021 guide's 6% doesn't count) |
+| n01 | What is the capital of France? | _should refuse_ (off-topic) |
+| n02 | What is the corporate income tax rate in Singapore? | _should refuse_ (near-domain, other country) |
+| n03 | What is the real property gains tax rate when selling a house after 5 years? | _should refuse_ (Malaysian tax, not in the knowledge base) |
+
+### 7.2 Retrieval hit rate
+
+A **doc hit @k**: a passage from the expected document is in the top k. A **section hit @k**: it also overlaps the expected pages (the stricter test; the two e-Invoice guidelines have 59 and 127 chunks). MRR is the mean of 1 / rank of the first expected-document passage.
+
+| Mode | Doc hit @1 | @3 | @6 | @10 | Section hit @1 | @3 | @6 | @10 | MRR |
+|---|---|---|---|---|---|---|---|---|---|
+| **Vector (production)** | **9/10** | 9/10 | 9/10 | **10/10** | **7/10** | 9/10 | 9/10 | 10/10 | **0.911** |
+| Hybrid: vector + full text (RRF) | 8/10 | 9/10 | 9/10 | 9/10 | 2/10 | 6/10 | 8/10 | 9/10 | 0.833 |
+| LLM rerank of vector top 20 | 9/10 | 9/10 | 9/10 | 10/10 | 7/10 | 9/10 | 9/10 | 10/10 | 0.911 |
+
+**Production retrieval hit rate: 9/10 @1 and @6, 10/10 @10** (k = 10 is what the model sees). The one miss below 10 is q10, ranked 9th (§7.4). Best similarity: answerable 0.705–0.761, refusals 0.504–0.603.
+
+### 7.3 Answers (`npm run eval -- --answers`, `gemini-3.5-flash`, k = 10)
+
+- **Answered with a citation to the expected document: 10/10.** Answers took 3.4–8.6 s (one 17.4 s).
+- **Refused when they should be: 3/3.** France at the similarity floor (0.5 s, no LLM call); Singapore and RPGT by the model (`answered: false`).
+- **Faithfulness, checked by hand:** every figure and condition in the 10 answers was traced to the passage it cites (e.g. the RM3,000,000 e-Invoice threshold and its exceptions, the 15% / 17% / 24% SME rates, the RM3,000 / RM8,000 / RM4,000 relief caps, the 5% group-relief test, the RM500,000 registration threshold). No invented figures. One answer is **faithful but outdated**: q07 says legal services are taxed at 6% (below).
+
+Full answers and citations: [`eval/results/vector-answers.md`](eval/results/vector-answers.md).
+
+### 7.4 What I learned
+
+- **Finding the right document is easy here; finding the right section is the real test.** Every mode got the right document first for 9/10 questions, but only 7/10 had the right section first. With 9 documents on distinct topics, a document-level hit rate flatters the system; the page-level metric is what separated the experiments.
+- **A lenient eval hid the most important bug.** q10 first accepted either SST guide as correct, which scored 10/10. Requiring the passage with today's rate showed it ranked 9th: the newer guide states the rate change in general terms ("all taxable services"), while 8 chunks of the older guide literally say "legal services". Embeddings match wording, not recency. Raising k from 6 to 10 plus a "prefer the newest source" prompt rule fixed q10; q07 ("*Is* service tax charged on legal services?") still retrieves only the 2021 guide and answers 6%. Grounding can't fix a stale knowledge base, so keeping documents current is the real fix (§8).
+- **Hybrid search hurt.** Full-text matching on every word of a conversational question rewards long chunks full of common words ("service", "tax", "client"), and "capital of France" matched "share capital". Hybrid helps exact codes and figures, which these questions didn't need; a keyword index would have to be used selectively (e.g. only for quoted terms or form numbers).
+- **Rerank was a wash.** It fixed a known ranking problem (q07's "Legal Services" section moved from 2nd to 1st) and caused another (q02's section from 1st to 2nd). Same totals, plus one model call and a few seconds per question on a free tier that was returning 503s. Not worth it at this size.
+- **Refusal needs the prompt, not a threshold.** Off-topic questions score ~0.50, but near-domain ones (other countries, uncovered Malaysian taxes) score 0.60, only ~0.10 below real questions. The floor saves an LLM call for nonsense; the model's `answered: false` does the real work, and did so 2/2.
+- **Free-tier reliability shapes the eval.** The first rerank run hit 503s and quietly fell back to vector order, which would have produced a "rerank" result that was really vector. The eval now fails instead of falling back, and runs that need generation are paced to 5 calls a minute.
+- **10 questions can't rank settings finely.** One question is 10 points, so the results report counts and treat one-question differences (like rerank's swaps) as noise. A larger set, written partly by someone who hasn't read the documents, is the first thing I'd add (§8).
 
 ## 8. What I would do differently with more time
 
@@ -318,4 +368,7 @@ To be written in M4: the question set with expected source documents, hit rate @
 - **Follow-up questions in Tax Q&A.** Each question is answered on its own. A conversation would rewrite a follow-up ("what about for SST?") into a standalone question using the history before retrieval: one extra LLM call, and an eval set of multi-turn cases.
 - **Streaming answers.** Answers arrive whole after 2–8 s. Streaming plain text and checking citations at the end would feel faster, at the cost of the schema-enforced refusal flag.
 - **"Ask about this client" from the CRM.** A button on a contact's page could open Tax Q&A with the client's context (company, status, open opportunities) shown alongside, so a rep can answer a client's tax question without leaving the record.
+- **A bigger, blinder eval set.** 13 questions written after reading the documents are easier than real ones. 50–100 questions from real customer queries (or written by someone who hasn't read the documents), including multi-document and follow-up questions, would make the hit-rate differences meaningful and catch wording the embeddings miss. An LLM judge for faithfulness, spot-checked by hand, would scale the manual check in §7.3.
+- **Make the knowledge base aware of what's superseded.** The 6% vs 8% case (§7.4) can't be fixed by ranking alone. Options: replace or flag documents that newer ones supersede, store "effective from" dates on rate statements, or always retrieve the latest rate-change passage for rate questions.
+- **Chunking and embedding experiments.** Chunk size, overlap and embedding model were fixed in M2 and not tuned, because each change is a ~6 minute re-ingest on the free tier. With a paid key, the eval could compare them in minutes (e.g. a second `chunks` table per configuration).
 - **Table-aware parsing.** pdf.js flattens tables into one cell per line, so a table becomes a run of words in reading order (e.g. the SME size thresholds in PR 8/2025). It's still searchable, but a layout-aware parser (or an LLM pass over table pages) could turn tables into Markdown rows that the LLM reads more reliably.

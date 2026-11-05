@@ -69,7 +69,7 @@ export function AnswerCard({ entry, onRetry }: { entry: Entry; onRetry?: () => v
 function notFoundExplanation(reason: NotFoundReason, passages: Passage[]): string {
   switch (reason) {
     case "low_similarity":
-      return `No passage was a close enough match (best ${passages[0]?.similarity.toFixed(2)}), so the AI wasn't asked.`;
+      return `No passage was a close enough match (best ${Math.max(...passages.map((p) => p.similarity)).toFixed(2)}), so the AI wasn't asked.`;
     case "model_declined":
       return `The AI read the ${passages.length} closest passages and found no answer in them.`;
     case "no_valid_citations":

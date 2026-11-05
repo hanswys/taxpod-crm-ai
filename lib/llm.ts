@@ -40,6 +40,12 @@ export function fallbackChatModel(): string {
   return process.env.GEMINI_FALLBACK_MODEL || "gemini-3.1-flash-lite";
 }
 
+// Reranking passages (M4 experiment). A Flash-Lite model with its own quota, so reranking
+// doesn't spend the answer models' 20 requests a day.
+export function rerankModel(): string {
+  return process.env.GEMINI_RERANK_MODEL || "gemini-3.5-flash-lite";
+}
+
 export function embedModel(): string {
   return process.env.GEMINI_EMBED_MODEL || "gemini-embedding-001";
 }
@@ -101,14 +107,15 @@ export function classifyLlmError(error: unknown): LlmError {
  * Generate a reply that must match `schema`. Gemini enforces the JSON schema while
  * generating; zod checks it again here. If the chat model is busy (429/5xx/timeout),
  * no longer exists (404: M0 saw a planned model retired), or replies with something
- * that doesn't parse, the fallback model is tried once.
+ * that doesn't parse, the fallback model is tried once. `models` overrides the order
+ * (rerank uses its own model first).
  */
 export async function generateJson<T>(
   prompt: string,
   systemInstruction: string,
   schema: z.ZodType<T>,
+  { models = [...new Set([chatModel(), fallbackChatModel()])] }: { models?: string[] } = {},
 ): Promise<{ data: T; model: string }> {
-  const models = [...new Set([chatModel(), fallbackChatModel()])];
   const jsonSchema = z.toJSONSchema(schema);
   let lastError: LlmError | undefined;
 
