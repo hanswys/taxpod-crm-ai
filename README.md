@@ -2,9 +2,13 @@
 
 A lightweight CRM (Leads, Opportunities, Dashboard, Activity Log) with a **RAG Q&A module over Malaysian tax documents**, and a **Meeting Notes Extractor** (Option B) that turns pasted notes into CRM records after a human review.
 
-- **Demo video (about 4 minutes):** _link added after recording_
+- **Demo video (2 minutes):** [watch on Loom](https://www.loom.com/share/4b3ac71c44b649f1a989a386d0469904)
 - **Design, RAG details and evaluation:** [ARCHITECTURE.md](ARCHITECTURE.md)
 - **How AI tools were used:** [AI_USAGE.md](AI_USAGE.md)
+
+<a href="https://www.loom.com/share/4b3ac71c44b649f1a989a386d0469904">
+  <img src="https://www.loom.com/v1/videos/4b3ac71c44b649f1a989a386d0469904/thumbnail.gif" alt="Demo video: watch on Loom" width="400">
+</a>
 
 ## Quick start
 

@@ -82,7 +82,7 @@ Written to `docs/demo-script.md` (committed, so the interview walkthrough can fo
 - [x] `docs/demo-script.md` (D-f)
 - [x] PLAN.md: milestone statuses, D9 outcome, deliverables checklist ticked
 - [ ] PR merged to `main`
-- [ ] **You:** record and upload the video → add the link to the README (small follow-up commit)
+- [x] **You:** record and upload the video → add the link to the README (Loom, 8 Nov)
 - [ ] **You:** make the repo public (D-b), final check of the GitHub page logged out
 - [ ] **You:** send the email: subject `[Your Full Name] — CRM Assessment Submission`, repo link + video link (I can prepare a Gmail draft if you give me the HR address)
 - [ ] Optional: one-page interview talk track (not committed)
