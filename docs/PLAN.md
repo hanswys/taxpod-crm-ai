@@ -98,5 +98,5 @@ Decide these in the milestone listed; record the outcome + reason in that milest
 - [x] README.md — setup, ingest, how to use RAG + add-on
 - [x] ARCHITECTURE.md — component diagram, data model, RAG design, add-on design, eval results, "what I'd do differently"
 - [x] AI_USAGE.md — tools, one real prompt/output/change/why, where AI helped / fell short
-- [ ] 3–5 min recording (script: [`docs/demo-script.md`](demo-script.md))
+- [x] 3–5 min recording ([Loom](https://www.loom.com/share/4b3ac71c44b649f1a989a386d0469904)) (script: [`docs/demo-script.md`](demo-script.md))
 - [ ] Email HR: subject `[Full Name] — CRM Assessment Submission`
